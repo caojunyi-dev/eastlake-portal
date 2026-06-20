@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Eastlake Mailbox — Client Portal</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+const C = { primary: "#1a3a5c", accent: "#e85d26", red: "#c0392b", green: "#2a7d4f", gold: "#f5a623", border: "#e0e0e0", light: "#f7f7f7", dark: "#222" };
+
+const WP_URL = "https://eastlakemail.com/wp-json/eastlake/v1";
+
+const USER_MOCK = { name: "Client", mailbox: "", address: "Eastlake Mailbox & Coworking\n[Your Name]\n2226 Eastlake Ave E\nUnit #[Your Mailbox #]\nSeattle, WA 98102", email: "support@eastlakemail.com", phone: "206-745-0160", website: "https://eastlakemail.com" };
+
+const MAIL_MOCK = [
+  { id: "27247001", from: "Chase Bank", type: "Letter", lastAction: "2026-06-18", assigned: "2026-06-10", status: "Viewed", folder: "Inbox", thumb: "📄", tag: "Financial", scanned: false },
+  { id: "27247002", from: "Amazon", type: "Package", lastAction: "2026-06-17", assigned: "2026-06-09", status: "Action Required", folder: "Action Required", thumb: "📦", tag: "Shopping", scanned: false },
+  { id: "27247003", from: "IRS", type: "Letter", lastAction: "2026-06-15", assigned: "2026-06-01", status: "Opened & Scanned", folder: "Opened & Scanned", thumb: "📄", tag: "Government", scanned: true },
+  { id: "27247004", from: "T-Mobile", type: "Letter", lastAction: "2026-05-30", assigned: "2026-05-28", status: "Forwarded", folder: "Forwarded", thumb: "📄", tag: "Utility", scanned: false },
+  { id: "27247005", from: "UPS Freight", type: "Package", lastAction: "2026-05-25", assigned: "2026-05-20", status: "Picked Up", folder: "Picked Up", thumb: "📦", tag: "Shopping", scanned: false },
+];
+
+const FOLDERS = [
+  { label: "Inbox", page: "mail-inbox", folder: "Inbox" },
+  { label: "Pending", page: "mail-pending", folder: "Pending" },
+  { label: "Action Required", page: "mail-action", folder: "Action Required" },
+  { bold: true, label: "Completed" },
+  { label: "Opened & Scanned", page: "mail-scanned", folder: "Opened & Scanned", indent: true },
+  { label: "Forwarded", page: "mail-forwarded", folder: "Forwarded", indent: true },
+  { label: "Shipments", page: "mail-shipments", folder: "Shipments", indent: true },
+  { label: "Picked Up", page: "mail-pickedup", folder: "Picked Up", indent: true },
+  { label: "Recycled", page: "mail-recycled", folder: "Recycled", indent: true },
+  { label: "Shredded", page: "mail-shredded", folder: "Shredded", indent: true },
+  { label: "Trash", page: "mail-trash", folder: "Trash" },
+];
+
+function Btn({ children, onClick, color, outline, small, disabled, full }) {
+  return <button onClick={onClick} disabled={disabled} style={{ background: outline ? "#fff" : (color || C.accent), color: outline ? (color || C.accent) : "#fff", border: `2px solid ${color || C.accent}`, borderRadius: 6, padding: small ? "5px 13px" : "9px 20px", fontWeight: 700, fontSize: small ? 12 : 14, cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1, width: full ? "100%" : "auto" }}>{children}</button>;
+}
+
+function Input({ label, value, onChange, placeholder, type = "text" }) {
+  return <div style={{ marginBottom: 13 }}>
+    {label && <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 4, color: "#444" }}>{label}</label>}
+    <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: `1px solid ${C.border}`, fontSize: 14 }} />
+  </div>;
+}
+
+function Modal({ title, onClose, children }) {
+  return <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div style={{ background: "#fff", borderRadius: 10, width: "min(480px,94vw)", maxHeight: "88vh", overflowY: "auto", boxShadow: "0 8px 40px rgba(0,0,0,0.18)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px", background: C.primary, borderRadius: "10px 10px 0 0" }}>
+        <span style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>{title}</span>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: "#fff", fontSize: 20, cursor: "pointer" }}>✕</button>
+      </div>
+      <div style={{ padding: 22 }}>{children}</div>
+    </div>
+  </div>;
+}
+
+function ForwardModal({ item, onClose, onDone }) {
+  const [addr, setAddr] = React.useState(""); const [city, setCity] = React.useState(""); const [method, setMethod] = React.useState("priority");
+  return <Modal title={`📤 Forward — #${item.id}`} onClose={onClose}>
+    <p style={{ fontSize: 13, color: "#666", marginBottom: 14 }}>From: <strong>{item.from}</strong></p>
+    <Input label="Street Address" value={addr} onChange={setAddr} placeholder="123 Main St" />
+    <Input label="City, State, ZIP" value={city} onChange={setCity} placeholder="Seattle, WA 98101" />
+    <div style={{ marginBottom: 16 }}>
+      <label style={{ fontWeight: 600, fontSize: 13, display: "block", marginBottom: 8 }}>Shipping Method</label>
+      {[["priority","📦 Priority Mail","With tracking · Est. $8–$15"],["regular","✉️ Regular Mail","No tracking · Est. $2–$4"]].map(([v,l,s]) => (
+        <label key={v} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", border: `2px solid ${method===v?C.accent:C.border}`, borderRadius: 8, marginBottom: 8, cursor: "pointer", background: method===v?"#fff5f0":"#fff" }}>
+          <input type="radio" checked={method===v} onChange={() => setMethod(v)} /><div><div style={{ fontWeight: 600 }}>{l}</div><div style={{ fontSize: 11, color: "#888" }}>{s}</div></div>
+        </label>
+      ))}
+    </div>
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+      <Btn outline onClick={onClose}>Cancel</Btn>
+      <Btn disabled={!addr||!city} onClick={() => { onDone("Forwarded", item); onClose(); }}>Submit Request</Btn>
+    </div>
+  </Modal>;
+}
+
+function ScanModal({ item, onClose, onDone }) {
+  const [note, setNote] = React.useState("");
+  return <Modal title={`🔍 Open & Scan — #${item.id}`} onClose={onClose}>
+    <p style={{ fontSize: 13, color: "#666", marginBottom: 14 }}>We'll open <strong>{item.from}</strong> and scan all contents within 1 business day.</p>
+    <Input label="Special Instructions (optional)" value={note} onChange={setNote} placeholder="e.g. scan both sides" />
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+      <Btn outline onClick={onClose}>Cancel</Btn>
+      <Btn onClick={() => { onDone("Opened & Scanned", item); onClose(); }}>Request Scan</Btn>
+    </div>
+  </Modal>;
+}
+
+function PickupModal({ item, onClose, onDone }) {
+  const [date, setDate] = React.useState(""); const [time, setTime] = React.useState("morning");
+  return <Modal title={`🏪 Schedule Pickup — #${item.id}`} onClose={onClose}>
+    <p style={{ fontSize: 13, color: "#666", marginBottom: 14 }}>📍 2301 Eastlake Ave E, Seattle, WA 98102<br/>Mon–Fri 10am–6pm · Sat 11am–2pm</p>
+    <Input label="Preferred Date" type="date" value={date} onChange={setDate} />
+    <div style={{ marginBottom: 16 }}>
+      <label style={{ fontWeight: 600, fontSize: 13, display: "block", marginBottom: 8 }}>Time Window</label>
+      {[["morning","Morning (10am–12pm)"],["afternoon","Afternoon (12pm–4pm)"],["evening","Evening (4pm–6pm)"]].map(([v,l]) => (
+        <label key={v} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 7, cursor: "pointer", fontSize: 14 }}>
+          <input type="radio" checked={time===v} onChange={() => setTime(v)} /> {l}
+        </label>
+      ))}
+    </div>
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+      <Btn outline onClick={onClose}>Cancel</Btn>
+      <Btn color={C.primary} disabled={!date} onClick={() => { onDone("Picked Up", item); onClose(); }}>Confirm Pickup</Btn>
+    </div>
+  </Modal>;
+}
+
+function ShredModal({ item, onClose, onDone }) {
+  const [ok, setOk] = React.useState(false);
+  return <Modal title={`🗑️ Shred — #${item.id}`} onClose={onClose}>
+    <p style={{ fontSize: 13, color: "#666" }}>This is <strong>permanent</strong>. Mail from <strong>{item.from}</strong> cannot be recovered once shredded.</p>
+    <label style={{ display: "flex", gap: 10, alignItems: "center", margin: "18px 0", cursor: "pointer", fontSize: 14 }}>
+      <input type="checkbox" checked={ok} onChange={e => setOk(e.target.checked)} /> I understand this cannot be undone
+    </label>
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+      <Btn outline onClick={onClose}>Cancel</Btn>
+      <Btn color={C.red} disabled={!ok} onClick={() => { onDone("Shredded", item); onClose(); }}>Confirm Shred</Btn>
+    </div>
+  </Modal>;
+}
+
+function CheckModal({ onClose }) {
+  const [step, setStep] = React.useState(1); const [bank, setBank] = React.useState(""); const [routing, setRouting] = React.useState(""); const [acct, setAcct] = React.useState("");
+  return <Modal title="💳 Check Deposit" onClose={onClose}>
+    {step === 1 ? <>
+      <p style={{ fontSize: 13, color: "#666", marginBottom: 16 }}>Our staff will deposit your check. Provide banking details below.</p>
+      <Input label="Bank Name" value={bank} onChange={setBank} placeholder="e.g. Chase, Wells Fargo" />
+      <Input label="Routing Number" value={routing} onChange={setRouting} placeholder="9-digit routing number" />
+      <Input label="Account Number" value={acct} onChange={setAcct} placeholder="Your account number" />
+      <div style={{ marginBottom: 16 }}>
+        <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 6 }}>Upload Check Image (optional)</label>
+        <input type="file" accept="image/*" style={{ fontSize: 13 }} />
+      </div>
+      <div style={{ background: "#fffbea", border: `1px solid ${C.gold}`, borderRadius: 6, padding: 10, fontSize: 12, color: "#7a5000", marginBottom: 16 }}>🔒 Your banking info is encrypted and used only for this deposit.</div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+        <Btn outline onClick={onClose}>Cancel</Btn>
+        <Btn color={C.primary} disabled={!bank||!routing||!acct} onClick={() => setStep(2)}>Submit</Btn>
+      </div>
+    </> : <div style={{ textAlign: "center", padding: "20px 0" }}>
+      <div style={{ fontSize: 50, marginBottom: 12 }}>✅</div>
+      <h3 style={{ color: C.primary }}>Deposit Request Submitted</h3>
+      <p style={{ color: "#666", fontSize: 14, margin: "10px 0 20px" }}>Staff will process within 1–2 business days.</p>
+      <Btn color={C.primary} onClick={onClose}>Close</Btn>
+    </div>}
+  </Modal>;
+}
+
+function MailDetail({ item, onClose, onAction }) {
+  const [modal, setModal] = React.useState(null);
+  return <Modal title={`Mail Item #${item.id}`} onClose={onClose}>
+    <div style={{ display: "flex", gap: 16, marginBottom: 20 }}>
+      <div style={{ fontSize: 52 }}>{item.thumb}</div>
+      <div>
+        <div style={{ fontWeight: 700, fontSize: 17 }}>{item.from}</div>
+        <div style={{ fontSize: 13, color: "#888", marginTop: 2 }}>{item.type} · {item.tag}</div>
+        <div style={{ fontSize: 12, color: "#aaa", marginTop: 6 }}>Assigned: {item.assigned}<br/>Last Action: {item.lastAction}</div>
+        <div style={{ marginTop: 8 }}><span style={{ background: item.status==="Action Required"?C.accent:C.primary, color:"#fff", borderRadius:4, padding:"3px 10px", fontSize:12, fontWeight:700 }}>{item.status}</span></div>
+      </div>
+    </div>
+    {item.scanned && <div style={{ background:"#f0f6ff", border:`1px solid #b3d0ff`, borderRadius:8, padding:"12px 16px", marginBottom:16, fontSize:13, color:C.primary }}>📄 Scan available — click to view full scan</div>}
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+      <Btn color={C.primary} onClick={() => setModal("scan")}>🔍 Open & Scan</Btn>
+      <Btn color={C.accent} onClick={() => setModal("forward")}>📤 Forward</Btn>
+      <Btn color="#c07000" onClick={() => setModal("pickup")}>🏪 Schedule Pickup</Btn>
+      <Btn color={C.red} outline onClick={() => setModal("shred")}>🗑️ Shred</Btn>
+    </div>
+    {modal==="forward" && <ForwardModal item={item} onClose={() => setModal(null)} onDone={(s,i) => { onAction(s,i); onClose(); }} />}
+    {modal==="scan" && <ScanModal item={item} onClose={() => setModal(null)} onDone={(s,i) => { onAction(s,i); onClose(); }} />}
+    {modal==="pickup" && <PickupModal item={item} onClose={() => setModal(null)} onDone={(s,i) => { onAction(s,i); onClose(); }} />}
+    {modal==="shred" && <ShredModal item={item} onClose={() => setModal(null)} onDone={(s,i) => { onAction(s,i); onClose(); }} />}
+  </Modal>;
+}
+
+function Dashboard({ mail, setPage, showCheck, user }) {
+  const inbox = mail.filter(m => m.folder==="Inbox").length;
+  const action = mail.filter(m => m.folder==="Action Required").length;
+  const done = mail.filter(m => ["Opened & Scanned","Forwarded","Picked Up","Recycled","Shredded"].includes(m.folder)).length;
+  return <div style={{ maxWidth: 860, margin: "0 auto", padding: "32px 20px" }}>
+    <h1 style={{ fontSize: 32, fontWeight: 900, marginBottom: 24 }}>Hello, {user.name.split(" ")[0]}!</h1>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16, marginBottom: 32 }}>
+      {[["Inbox", inbox, "mail-inbox"],["Action Required", action, "mail-action"],["Recently Completed", done, "mail-completed"]].map(([l,v,p]) => (
+        <div key={l} onClick={() => setPage(p)} style={{ background: C.dark, borderRadius: 10, padding: "28px 20px", cursor: "pointer" }}
+          onMouseEnter={e => e.currentTarget.style.opacity=".85"} onMouseLeave={e => e.currentTarget.style.opacity="1"}>
+          <div style={{ color: "#ccc", fontSize: 16, fontWeight: 600, marginBottom: 12 }}>{l}</div>
+          <div style={{ color: v>0?"#fff":"#666", fontSize: 52, fontWeight: 900 }}>{v}</div>
+        </div>
+      ))}
+    </div>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+      <div style={{ border:`1px solid ${C.border}`, borderRadius:10, padding:"20px 22px", fontSize:14, lineHeight:1.8 }}>
+        <div style={{ fontWeight:700, marginBottom:8, color:"#444" }}>Your Mailbox Address:</div>
+        <div style={{ whiteSpace:"pre-line" }}>{user.address}</div>
+      </div>
+      <div style={{ border:`1px solid ${C.border}`, borderRadius:10, padding:"20px 22px", fontSize:14, lineHeight:1.9 }}>
+        <div style={{ fontWeight:700, marginBottom:8, color:"#444" }}>Support:</div>
+        <div>Email: <a href={`mailto:${user.email}`} style={{ color:C.accent }}>{user.email}</a></div>
+        <div>Phone: <a href={`tel:${user.phone}`} style={{ color:C.accent }}>{user.phone}</a></div>
+        <div>Web: <a href={user.website} style={{ color:C.accent }} target="_blank">{user.website}</a></div>
+        <div style={{ marginTop:10 }}><button onClick={showCheck} style={{ background:C.gold, border:"none", borderRadius:6, padding:"6px 16px", fontWeight:700, fontSize:13, cursor:"pointer" }}>💳 Deposit a Check</button></div>
+      </div>
+    </div>
+  </div>;
+}
+
+function MailList({ mail, setMail, folder, showToast }) {
+  const [sel, setSel] = React.useState(null); const [search, setSearch] = React.useState("");
+  const filtered = mail.filter(m => {
+    const mf = folder==="Inbox"?m.folder==="Inbox":folder==="Action Required"?m.folder==="Action Required":folder==="Completed"?["Opened & Scanned","Forwarded","Picked Up","Recycled","Shredded"].includes(m.folder):m.folder===folder;
+    return mf && (!search || m.from.toLowerCase().includes(search.toLowerCase()) || m.id.includes(search));
+  });
+  const handleAction = (s, item) => { setMail(prev => prev.map(m => m.id===item.id?{...m,status:s,folder:s,lastAction:new Date().toISOString().slice(0,10)}:m)); showToast(`✅ ${s} request submitted`); };
+  return <div style={{ maxWidth: 860, margin: "0 auto", padding: "24px 20px" }}>
+    <div style={{ display:"flex", gap:10, marginBottom:20 }}>
+      <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by Text or ID" style={{ flex:1, padding:"8px 14px", borderRadius:6, border:`1px solid ${C.border}`, fontSize:14 }} />
+      <button onClick={() => setSearch("")} style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:6, padding:"8px 12px", cursor:"pointer" }}>↺</button>
+    </div>
+    {filtered.length===0 && <div style={{ textAlign:"center", padding:"60px 0", color:"#aaa", fontSize:16 }}>📭 No items in this folder</div>}
+    {filtered.map(item => (
+      <div key={item.id} onClick={() => setSel(item)} style={{ display:"flex", alignItems:"center", gap:16, padding:"16px 18px", border:`1px solid ${C.border}`, borderRadius:10, marginBottom:10, cursor:"pointer", background:"#fff" }}
+        onMouseEnter={e => e.currentTarget.style.boxShadow="0 2px 12px rgba(0,0,0,0.10)"} onMouseLeave={e => e.currentTarget.style.boxShadow="none"}>
+        <input type="checkbox" onClick={e => e.stopPropagation()} style={{ width:16, height:16 }} />
+        <div style={{ color:C.accent, fontWeight:700, fontSize:15, minWidth:80 }}>#{item.id}</div>
+        <div style={{ flex:1 }}>
+          <div style={{ display:"flex", gap:20, flexWrap:"wrap" }}>
+            {[["Last Action",item.lastAction],["Status",item.status],["Assigned",item.assigned],["From",item.from]].map(([k,v]) => (
+              <div key={k}><div style={{ fontSize:11, color:"#aaa", fontWeight:600, textTransform:"uppercase", letterSpacing:.5 }}>{k}</div><div style={{ fontSize:14, fontWeight:k==="Status"?600:400, color:item.status==="Action Required"&&k==="Status"?C.accent:C.dark }}>{v}</div></div>
+            ))}
+          </div>
+        </div>
+        <div style={{ width:72, height:72, background:"#f0f0f0", borderRadius:6, display:"flex", alignItems:"center", justifyContent:"center", fontSize:32 }}>{item.thumb}</div>
+      </div>
+    ))}
+    {sel && <MailDetail item={sel} onClose={() => setSel(null)} onAction={handleAction} />}
+  </div>;
+}
+
+function App() {
+  const [loggedIn, setLoggedIn] = React.useState(false);
+  const [email, setEmail] = React.useState(""); const [pass, setPass] = React.useState("");
+  const [loading, setLoading] = React.useState(false); const [err, setErr] = React.useState("");
+  const [page, setPage] = React.useState("dashboard");
+  const [mail, setMail] = React.useState(MAIL_MOCK);
+  const [user, setUser] = React.useState(USER_MOCK);
+  const [checkModal, setCheckModal] = React.useState(false);
+  const [toast, setToast] = React.useState(null);
+  const [token, setToken] = React.useState(null);
+
+  const showToast = msg => { setToast(msg); setTimeout(() => setToast(null), 3200); };
+
+  const handleLogin = async () => {
+    setLoading(true); setErr("");
+    try {
+      const res = await fetch(`${WP_URL.replace('/eastlake/v1','')}/jwt-auth/v1/token`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: email, password: pass })
+      });
+      const data = await res.json();
+      if (data.token) {
+        setToken(data.token);
+        // Fetch real user data
+        const me = await fetch(`${WP_URL}/me`, { headers: { Authorization: `Bearer ${data.token}` } });
+        const meData = await me.json();
+        setUser({ ...USER_MOCK, name: meData.name || USER_MOCK.name, mailbox: meData.mailbox_number || USER_MOCK.mailbox });
+        // Fetch real mail
+        const mailRes = await fetch(`${WP_URL}/mail`, { headers: { Authorization: `Bearer ${data.token}` } });
+        const mailData = await mailRes.json();
+        if (Array.isArray(mailData) && mailData.length > 0) setMail(mailData);
+        setLoggedIn(true);
+      } else { setErr("Invalid email or password. Please try again."); }
+    } catch(e) {
+      // Fallback to demo mode if API not connected yet
+      setLoggedIn(true);
+      showToast("⚠️ Demo mode — API not connected yet");
+    }
+    setLoading(false);
+  };
+
+  const NAV = [
+    { id: "dashboard", label: "Dashboard" },
+    { id: "mail-inbox", label: "Mail" },
+    { id: "billing", label: "Billing" },
+    { id: "settings", label: "Settings" },
+  ];
+  const isMailPage = page.startsWith("mail-");
+  const currentFolder = FOLDERS.find(f => f.page===page)?.folder || "Inbox";
+
+  if (!loggedIn) return (
+    <div style={{ minHeight:"100vh", background:`linear-gradient(135deg, ${C.primary} 0%, #0a1e35 100%)`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ background:"#fff", borderRadius:14, padding:"40px 36px", width:"min(380px,90vw)", boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }}>
+        <div style={{ textAlign:"center", marginBottom:28 }}>
+          <img src="https://eastlakemail.com/wp-content/uploads/2025/eastlake-logo.png" alt="Eastlake Mailbox & Coworking" style={{ maxWidth:220, marginBottom:12 }} onError={e => { e.target.style.display='none'; }} />
+          <img src="https://eastlakemail.com/wp-content/uploads/Eastlake-MailboxCoworking-LO-FF-1.jpg" alt="Eastlake Mailbox & Coworking" style={{ maxWidth:240, marginBottom:8 }} />
+          <p style={{ color:"#888", fontSize:13, margin:0 }}>Virtual Mailbox Portal</p>
+        </div>
+        <Input label="Email Address" type="email" value={email} onChange={setEmail} placeholder="you@example.com" />
+        <Input label="Password" type="password" value={pass} onChange={setPass} placeholder="••••••••" />
+        {err && <div style={{ color:C.red, fontSize:13, marginBottom:12 }}>{err}</div>}
+        <div style={{ textAlign:"right", marginBottom:18 }}><a href="#" style={{ fontSize:12, color:C.accent }}>Forgot password?</a></div>
+        <button onClick={handleLogin} disabled={loading} style={{ width:"100%", background:C.primary, color:"#fff", border:"none", borderRadius:8, padding:13, fontWeight:800, fontSize:16, cursor:"pointer", opacity:loading?.7:1 }}>{loading?"Signing in...":"Sign In"}</button>
+        <p style={{ textAlign:"center", fontSize:11, color:"#bbb", marginTop:18 }}>Eastlake Mailbox & Coworking · eastlakemail.com</p>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ fontFamily:"'Segoe UI', Arial, sans-serif", minHeight:"100vh", background:"#fff" }}>
+      {/* Header */}
+      <div style={{ borderBottom:`1px solid ${C.border}`, background:"#fff", display:"flex", alignItems:"center", padding:"0 24px", height:56 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginRight:32 }}>
+          <span style={{ fontSize:22 }}>📬</span>
+          <div><div style={{ fontWeight:900, fontSize:13, color:C.primary, lineHeight:1 }}>EASTLAKE MAILBOX</div><div style={{ fontSize:9, color:C.accent, letterSpacing:1 }}>& COWORKING</div></div>
+        </div>
+        <div style={{ display:"flex", flex:1 }}>
+          {NAV.map(n => (
+            <button key={n.id} onClick={() => setPage(n.id)} style={{ display:"flex", alignItems:"center", padding:"0 18px", height:56, border:"none", borderBottom:`3px solid ${page===n.id||(n.id==="mail-inbox"&&isMailPage)?C.accent:"transparent"}`, background:"none", color:page===n.id||(n.id==="mail-inbox"&&isMailPage)?C.dark:"#888", fontWeight:page===n.id||(n.id==="mail-inbox"&&isMailPage)?800:500, fontSize:15, cursor:"pointer" }}>{n.label}</button>
+          ))}
+        </div>
+        <div style={{ display:"flex", gap:12, alignItems:"center" }}>
+          <button onClick={() => setCheckModal(true)} style={{ background:C.gold, border:"none", borderRadius:6, padding:"6px 14px", fontWeight:700, fontSize:12, cursor:"pointer" }}>💳 Deposit Check</button>
+          <span style={{ fontSize:13, color:"#888", cursor:"pointer" }}>❓ Help</span>
+          <button onClick={() => setLoggedIn(false)} style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:6, padding:"5px 12px", fontSize:12, cursor:"pointer", color:"#666" }}>Sign Out</button>
+        </div>
+      </div>
+
+      <div style={{ display:"flex" }}>
+        {/* Sidebar */}
+        {isMailPage && <div style={{ width:180, borderRight:`1px solid ${C.border}`, minHeight:"calc(100vh - 56px)", padding:"20px 0", flexShrink:0 }}>
+          {FOLDERS.map((s,i) => s.bold
+            ? <div key={i} style={{ padding:"12px 20px 4px", fontSize:12, color:"#aaa", fontWeight:700, textTransform:"uppercase", letterSpacing:.5 }}>{s.label}</div>
+            : <button key={i} onClick={() => setPage(s.page)} style={{ display:"block", width:"100%", textAlign:"left", padding:`8px ${s.indent?28:20}px`, border:"none", borderLeft:`3px solid ${page===s.page?C.accent:"transparent"}`, background:page===s.page?"#fff5f0":"none", color:page===s.page?C.accent:C.dark, fontWeight:page===s.page?700:400, fontSize:14, cursor:"pointer" }}>{s.label}</button>
+          )}
+        </div>}
+
+        <div style={{ flex:1 }}>
+          {page==="dashboard" && <Dashboard mail={mail} setPage={setPage} showCheck={() => setCheckModal(true)} user={user} />}
+          {isMailPage && <MailList mail={mail} setMail={setMail} folder={currentFolder} showToast={showToast} />}
+          {page==="billing" && <div style={{ padding:40, maxWidth:700, margin:"0 auto" }}><h2 style={{ marginBottom:20 }}>Billing</h2><p style={{ color:"#888" }}>Billing history will appear here once connected to WordPress.</p></div>}
+          {page==="settings" && <div style={{ padding:40, maxWidth:600, margin:"0 auto" }}><h2 style={{ marginBottom:20 }}>Settings</h2><Input label="Full Name" value={user.name} onChange={() => {}} /><Input label="Email" value={email} onChange={() => {}} /><Btn color={C.primary}>Save Changes</Btn></div>}
+        </div>
+      </div>
+
+      {checkModal && <CheckModal onClose={() => setCheckModal(false)} />}
+      {toast && <div style={{ position:"fixed", bottom:28, left:"50%", transform:"translateX(-50%)", background:C.primary, color:"#fff", padding:"11px 26px", borderRadius:30, fontWeight:600, fontSize:14, boxShadow:"0 4px 20px rgba(0,0,0,0.2)", zIndex:2000 }}>{toast}</div>}
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>
