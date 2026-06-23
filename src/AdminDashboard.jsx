@@ -367,7 +367,7 @@ function ClientsTab({ apiFetch, onMessage }) {
                 <td style={tdStyle}><StatusBadge s={c.status}/></td>
                 <td style={tdStyle}>{c.mail_count}</td>
                 <td style={tdStyle}>
-                  <div style={{display:"flex",gap:6"}}>
+                  <div style={{display:"flex",gap:6}}>
                     <button onClick={()=>{setEditing(c.id);setEditData({mailbox_number:c.mailbox_number||"",plan:c.plan,status:c.status,notes:c.notes||""});setMsg("");}} style={{...btnSmall,background:"#4299e1"}}>Edit</button>
                     <button onClick={()=>onMessage(c)} style={{...btnSmall,background:"#9f7aea",position:"relative"}}>
                       Msg {c.unread_messages>0 && <span style={{position:"absolute",top:-4,right:-4,background:"#e53e3e",color:"#fff",borderRadius:8,fontSize:10,padding:"0 4px"}}>{c.unread_messages}</span>}
