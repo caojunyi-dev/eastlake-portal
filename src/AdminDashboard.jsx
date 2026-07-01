@@ -2,6 +2,14 @@ import { useState, useEffect, useCallback } from "react";
 
 const API = "https://eastlakemail.com/wp-json/eastlake/v1";
 
+// Returns real name; falls back to email if display_name was set to email by WP default
+const clientName = (c) => {
+  if (!c) return '';
+  if (c.display_name && !c.display_name.includes('@')) return c.display_name;
+  if (c.first_name || c.last_name) return `${c.first_name||''} ${c.last_name||''}`.trim();
+  return c.user_email || c.display_name || '';
+};
+
 // ─── Auth ────────────────────────────────────────────────────────────────────
 function useAuth() {
 const [token, setToken] = useState(() => localStorage.getItem("em_token"));
@@ -188,7 +196,7 @@ return (
 <div style={{display:"flex",gap:10}}>
 <select value={selClient} onChange={e=>setSelClient(e.target.value)} style={selectStyle}>
 <option value="">All Clients</option>
-{clients.map(c=><option key={c.id} value={c.id}>#{c.mailbox_number||"?"} {c.display_name}</option>)}
+{clients.map(c=><option key={c.id} value={c.id}>#{c.mailbox_number||"?"} {clientName(c)}</option>)}
 </select>
 <button onClick={()=>setShowUpload(true)} style={btnStyle}>+ Add Mail Item</button>
 </div>
@@ -202,7 +210,7 @@ return (
 <label style={labelStyle}>Client *</label>
 <select value={form.client_id} onChange={e=>setForm({...form,client_id:e.target.value})} style={selectStyle}>
 <option value="">Select client...</option>
-{clients.map(c=><option key={c.id} value={c.id}>#{c.mailbox_number||"?"} {c.display_name} ({c.user_email})</option>)}
+{clients.map(c=><option key={c.id} value={c.id}>#{c.mailbox_number||"?"} {clientName(c)} ({c.user_email})</option>)}
 </select>
 </div>
 <div>
@@ -397,7 +405,7 @@ return (
 ? <span style={{fontFamily:"monospace",fontWeight:700,color:"#4299e1"}}>#{c.mailbox_number}</span>
 : <span style={{color:"#e53e3e",fontSize:12}}>Not assigned</span>}
 </td>
-<td style={tdStyle}><div style={{fontWeight:500}}>{c.display_name}</div></td>
+<td style={tdStyle}><div style={{fontWeight:500}}>{clientName(c)}</div></td>
 <td style={tdStyle}>{c.user_email}</td>
 <td style={tdStyle}>{c.plan}</td>
 <td style={tdStyle}><StatusBadge s={c.status}/></td>
@@ -487,7 +495,7 @@ display:"block",width:"100%",textAlign:"left",padding:"10px 16px",
 background:activeClient?.id===c.id?"#ebf8ff":"transparent",
 border:"none",borderTop:"1px solid #edf2f7",cursor:"pointer",position:"relative"
 }}>
-<div style={{fontSize:13,fontWeight:500,color:"#1a202c"}}>{c.display_name}</div>
+<div style={{fontSize:13,fontWeight:500,color:"#1a202c"}}>{clientName(c)}</div>
 <div style={{fontSize:11,color:"#718096"}}>#{c.mailbox_number||"?"}</div>
 {c.unread_messages>0 && <span style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"#e53e3e",color:"#fff",borderRadius:10,fontSize:11,padding:"1px 6px"}}>{c.unread_messages}</span>}
 </button>
@@ -499,7 +507,7 @@ border:"none",borderTop:"1px solid #edf2f7",cursor:"pointer",position:"relative"
 ) : (
 <>
 <div style={{padding:"14px 20px",borderBottom:"1px solid #edf2f7",fontWeight:600,fontSize:14}}>
-{activeClient.display_name} <span style={{color:"#718096",fontWeight:400,fontSize:12}}>#{activeClient.mailbox_number}</span>
+{clientName(activeClient)} <span style={{color:"#718096",fontWeight:400,fontSize:12}}>#{activeClient.mailbox_number}</span>
 </div>
 <div style={{flex:1,overflowY:"auto",padding:16,display:"flex",flexDirection:"column",gap:10}}>
 {messages.map(m=>(
