@@ -423,6 +423,7 @@ const [adding, setAdding] = useState(false);
 const [pwValue, setPwValue] = useState("");
 const [pwMsg, setPwMsg] = useState("");
 const [pwSaving, setPwSaving] = useState(false);
+const [sortDir, setSortDir] = useState("asc");
 
 const load = useCallback(() => {
 const q = search ? `?search=${encodeURIComponent(search)}` : "";
@@ -491,10 +492,10 @@ return (
 <div style={{background:"#fff",borderRadius:10,boxShadow:"0 1px 4px rgba(0,0,0,0.08)",overflow:"hidden"}}>
 <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
 <thead><tr style={{background:"#f7fafc"}}>
-{["Mailbox #","Name","Email","Plan","Status","Mail","Actions"].map(h=><th key={h} style={thStyle}>{h}</th>)}
+{["Mailbox #","Name","Email","Plan","Status","Mail","Actions"].map(h=>h==="Mailbox #"?<th key={h} style={{...thStyle,cursor:"pointer",userSelect:"none"}} onClick={()=>setSortDir(d=>d==="asc"?"desc":"asc")}>{h} {sortDir==="asc"?"▲":"▼"}</th>:<th key={h} style={thStyle}>{h}</th>)}
 </tr></thead>
 <tbody>
-{clients.map(c=>(
+{[...clients].sort((a,b)=>{const va=a.mailbox_number,vb=b.mailbox_number;if(!va&&!vb)return 0;if(!va)return 1;if(!vb)return -1;const na=parseInt(va,10),nb=parseInt(vb,10);if(isNaN(na)||isNaN(nb))return String(va).localeCompare(String(vb));return sortDir==="asc"?na-nb:nb-na;}).map(c=>(
 <>
 <tr key={c.id} style={{borderTop:"1px solid #edf2f7"}}>
 <td style={tdStyle}>
