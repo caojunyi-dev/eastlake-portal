@@ -420,6 +420,9 @@ const [msg, setMsg] = useState("");
 const [showAdd, setShowAdd] = useState(false);
 const [addData, setAddData] = useState({name:"",email:"",password:"",plan:"Standard",mailbox_number:"",status:"Active",notes:""});
 const [adding, setAdding] = useState(false);
+const [pwValue, setPwValue] = useState("");
+const [pwMsg, setPwMsg] = useState("");
+const [pwSaving, setPwSaving] = useState(false);
 
 const load = useCallback(() => {
 const q = search ? `?search=${encodeURIComponent(search)}` : "";
@@ -433,6 +436,16 @@ try {
 await apiFetch(`/admin/clients/${editing}`, { method:"PUT", body:JSON.stringify(editData) });
 setMsg("✅ Saved"); setEditing(null); load();
 } catch(e) { setMsg("Error: "+e.message); }
+};
+
+const resetPassword = async (clientId) => {
+if (!pwValue || pwValue.length < 6) return setPwMsg("Password must be at least 6 characters");
+setPwSaving(true); setPwMsg("");
+try {
+await apiFetch(`/admin/clients/${clientId}/password`, { method:"PUT", body:JSON.stringify({password:pwValue}) });
+setPwMsg("✅ Password reset!"); setPwValue("");
+} catch(e) { setPwMsg("Error: "+e.message); }
+setPwSaving(false);
 };
 
 const addClient = async () => {
@@ -496,7 +509,7 @@ return (
 <td style={tdStyle}>{c.mail_count}</td>
 <td style={tdStyle}>
 <div style={{display:"flex",gap:6}}>
-<button onClick={()=>{setEditing(c.id);setEditData({mailbox_number:c.mailbox_number||"",plan:c.plan,status:c.status,notes:c.notes||""});setMsg("");}} style={{...btnSmall,background:"#4299e1"}}>Edit</button>
+<button onClick={()=>{setEditing(c.id);setEditData({mailbox_number:c.mailbox_number||"",plan:c.plan,status:c.status,notes:c.notes||""});setMsg("");setPwValue("");setPwMsg("");}} style={{...btnSmall,background:"#4299e1"}}>Edit</button>
 <button onClick={()=>onMessage(c)} style={{...btnSmall,background:"#9f7aea",position:"relative"}}>
 Msg {c.unread_messages>0 && <span style={{position:"absolute",top:-4,right:-4,background:"#e53e3e",color:"#fff",borderRadius:8,fontSize:10,padding:"0 4px"}}>{c.unread_messages}</span>}
 </button>
@@ -531,6 +544,15 @@ Msg {c.unread_messages>0 && <span style={{position:"absolute",top:-4,right:-4,ba
 <div style={{display:"flex",gap:8,marginTop:12}}>
 <button onClick={save} style={btnStyle}>Save Changes</button>
 <button onClick={()=>setEditing(null)} style={btnOutline}>Cancel</button>
+</div>
+<div style={{marginTop:16,paddingTop:16,borderTop:"1px dashed #cbd5e0"}}>
+<label style={labelStyle}>🔑 Reset Password</label>
+<div style={{display:"flex",gap:8,alignItems:"center",maxWidth:480}}>
+<input value={pwValue} onChange={e=>setPwValue(e.target.value)} style={{...inputStyle,marginBottom:0}} placeholder="New password (min 6 characters)"/>
+<button onClick={()=>resetPassword(c.id)} disabled={pwSaving} style={{...btnStyle,background:"#dd6b20",flexShrink:0}}>{pwSaving?"Saving...":"Reset"}</button>
+</div>
+{pwMsg && <p style={{color:pwMsg.startsWith("✅")?"#48bb78":"#e53e3e",fontSize:13,margin:"6px 0 0"}}>{pwMsg}</p>}
+<p style={{fontSize:11,color:"#718096",margin:"6px 0 0"}}>Sets a new password for this client. Tell them the new password — they can change it after logging in.</p>
 </div>
 </td>
 </tr>
