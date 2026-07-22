@@ -1,6 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 
 const API = "https://eastlakemail.com/wp-json/eastlake/v1";
+
+// Rewrite private R2 S3 URLs → public R2.dev URLs (in case plugin filter doesn't catch it)
+const R2_PRIVATE = 'https://a8b5821d57c377017a1915d8dc8d2092.r2.cloudflarestorage.com/eastlake-mailbox/';
+const R2_PUBLIC  = 'https://pub-21228963971f4ec18abebc2520b9032b.r2.dev/';
+const r2Url = (url) => url ? url.replace(R2_PRIVATE, R2_PUBLIC) : url;
 
 // Returns real name; falls back to email if display_name was set to email by WP default
 const clientName = (c) => {
@@ -10,7 +15,7 @@ const clientName = (c) => {
   return c.user_email || c.display_name || '';
 };
 
-// ─── Auth ────────────────────────────────────────────────────────────────────
+// ─── Auth ─────────────────────────────────────────────────────────────────────
 function useAuth() {
 const [token, setToken] = useState(() => localStorage.getItem("em_token"));
 const [user, setUser] = useState(null);
@@ -61,7 +66,7 @@ else { logout(); }
 return { token, user, login, logout, apiFetch, loading };
 }
 
-// ─── Login Screen ────────────────────────────────────────────────────────────
+// ─── Login Screen ───────────────────────────────────────────────────────────
 function LoginScreen({ onLogin }) {
 const [u, setU] = useState(""); const [p, setP] = useState("");
 const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
@@ -91,6 +96,7 @@ const TABS = [
 {id:"requests", label:"📋 Requests"},
 {id:"clients", label:"👥 Clients"},
 {id:"messages", label:"💬 Messages"},
+{id:"documents", label:"📁 Documents"},
 ];
 
 function Sidebar({ active, onChange, stats, onLogout }) {
@@ -161,6 +167,11 @@ const [uploading, setUploading] = useState(false);
 const [form, setForm] = useState({client_id:"",sender:"",mail_type:"Letter",tag:"General",notes:""});
 const [scanFile, setScanFile] = useState(null);
 const [msg, setMsg] = useState("");
+const [editId, setEditId] = useState(null);
+const [editForm, setEditForm] = useState({});
+const [editFile, setEditFile] = useState(null);
+const [editMsg, setEditMsg] = useState("");
+const [editSaving, setEditSaving] = useState(false);
 
 const load = useCallback(() => {
 const q = selClient ? `?client_id=${selClient}&limit=50` : "?limit=50";
@@ -187,6 +198,28 @@ setForm({client_id:"",sender:"",mail_type:"Letter",tag:"General",notes:""});
 setScanFile(null); load();
 } catch(e) { setMsg("Error: "+e.message); }
 setUploading(false);
+};
+
+const openEdit = (item) => {
+setEditId(item.id);
+setEditForm({ sender: item.sender||"", mail_type: item.mail_type||"Letter", tag: item.tag||"General", notes: item.notes||"", status: item.status||"New" });
+setEditFile(null); setEditMsg("");
+};
+
+const saveEdit = async () => {
+setEditSaving(true); setEditMsg("");
+try {
+let scan_url = editForm.scan_url, r2_key = editForm.r2_key;
+if (editFile) {
+const fd = new FormData(); fd.append("file", editFile);
+const res = await fetch(API+"/upload", { method:"POST", headers:{Authorization:`Bearer ${localStorage.getItem("em_token")}`}, body:fd });
+const up = await res.json();
+scan_url = up.url; r2_key = up.r2_key;
+}
+await apiFetch(`/admin/mail-items/${editId}`, { method:"PUT", body:JSON.stringify({...editForm, scan_url, r2_key}) });
+setEditMsg("✅ Saved!"); setEditId(null); load();
+} catch(e) { setEditMsg("Error: "+e.message); }
+setEditSaving(false);
 };
 
 return (
@@ -249,20 +282,71 @@ return (
 <div style={{background:"#fff",borderRadius:10,boxShadow:"0 1px 4px rgba(0,0,0,0.08)",overflow:"hidden"}}>
 <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
 <thead><tr style={{background:"#f7fafc"}}>
-{["Item ID","Client","Type","Sender","Status","Date",""].map(h=><th key={h} style={thStyle}>{h}</th>)}
+{["Item ID","Client","Type","Sender","Status","Date","Scan",""].map(h=><th key={h} style={thStyle}>{h}</th>)}
 </tr></thead>
 <tbody>
-{items.length===0 && <tr><td colSpan={7} style={{textAlign:"center",padding:32,color:"#718096"}}>No mail items</td></tr>}
+{items.length===0 && <tr><td colSpan={8} style={{textAlign:"center",padding:32,color:"#718096"}}>No mail items</td></tr>}
 {items.map(item=>(
-<tr key={item.id} style={{borderTop:"1px solid #edf2f7"}}>
+<React.Fragment key={item.id}>
+<tr style={{borderTop:"1px solid #edf2f7",background:editId===item.id?"#ebf8ff":"transparent"}}>
 <td style={tdStyle}><span style={{fontFamily:"monospace",fontWeight:600,color:"#4299e1"}}>{item.item_id}</span></td>
 <td style={tdStyle}><div style={{fontWeight:500}}>{item.client_name}</div><div style={{color:"#718096",fontSize:11}}>#{item.mailbox_number}</div></td>
 <td style={tdStyle}>{item.mail_type}</td>
 <td style={tdStyle}>{item.sender||"—"}</td>
 <td style={tdStyle}><StatusBadge s={item.status}/></td>
 <td style={tdStyle}>{item.created_at?.slice(0,10)}</td>
-<td style={tdStyle}>{item.scan_url && <a href={item.scan_url} target="_blank" rel="noreferrer" style={{color:"#4299e1",fontSize:12}}>View Scan</a>}</td>
+<td style={tdStyle}>{item.scan_url ? <a href={r2Url(item.scan_url)} target="_blank" rel="noreferrer" style={{color:"#4299e1",fontSize:12}}>View Scan</a> : <span style={{color:"#a0aec0",fontSize:12}}>None</span>}</td>
+<td style={tdStyle}>
+{editId===item.id
+? <button onClick={()=>setEditId(null)} style={{...btnSmall,background:"#718096"}}>Cancel</button>
+: <button onClick={()=>openEdit(item)} style={{...btnSmall,background:"#667eea"}}>Edit</button>}
+</td>
 </tr>
+{editId===item.id && (
+<tr style={{borderTop:"1px solid #bee3f8"}}>
+<td colSpan={8} style={{padding:"16px 20px",background:"#ebf8ff"}}>
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:12,marginBottom:12}}>
+<div>
+<label style={labelStyle}>Sender</label>
+<input value={editForm.sender} onChange={e=>setEditForm({...editForm,sender:e.target.value})} style={inputStyle} placeholder="e.g. USPS, Amazon"/>
+</div>
+<div>
+<label style={labelStyle}>Mail Type</label>
+<select value={editForm.mail_type} onChange={e=>setEditForm({...editForm,mail_type:e.target.value})} style={selectStyle}>
+{["Letter","Package","Magazine","Legal","Check","Other"].map(t=><option key={t}>{t}</option>)}
+</select>
+</div>
+<div>
+<label style={labelStyle}>Tag</label>
+<select value={editForm.tag} onChange={e=>setEditForm({...editForm,tag:e.target.value})} style={selectStyle}>
+{["General","Personal","Business","Legal","Financial","Government"].map(t=><option key={t}>{t}</option>)}
+</select>
+</div>
+<div>
+<label style={labelStyle}>Status</label>
+<select value={editForm.status} onChange={e=>setEditForm({...editForm,status:e.target.value})} style={selectStyle}>
+{["New","Opened","Forward","Pickup","Shred"].map(t=><option key={t}>{t}</option>)}
+</select>
+</div>
+<div style={{gridColumn:"1/-1"}}>
+<label style={labelStyle}>Notes</label>
+<input value={editForm.notes} onChange={e=>setEditForm({...editForm,notes:e.target.value})} style={inputStyle}/>
+</div>
+<div style={{gridColumn:"1/-1"}}>
+<label style={labelStyle}>{item.scan_url ? "Replace Scan / PDF" : "Upload Scan / PDF"}</label>
+<input type="file" accept="image/*,application/pdf" onChange={e=>setEditFile(e.target.files[0])} style={{fontSize:13}}/>
+{item.scan_url && <span style={{fontSize:11,color:"#718096",marginLeft:8}}>Current: <a href={r2Url(item.scan_url)} target="_blank" rel="noreferrer" style={{color:"#4299e1"}}>View existing scan</a></span>}
+</div>
+</div>
+{editMsg && <p style={{color:editMsg.startsWith("✅")?"#48bb78":"#e53e3e",fontSize:13,margin:"0 0 8px"}}>{editMsg}</p>}
+<div style={{display:"flex",gap:8}}>
+<button onClick={saveEdit} disabled={editSaving} style={btnStyle}>{editSaving?"Saving...":"Save Changes"}</button>
+<button onClick={()=>setEditId(null)} style={btnOutline}>Cancel</button>
+</div>
+</td>
+</tr>
+)}
+</React.Fragment>
 ))}
 </tbody>
 </table>
@@ -271,7 +355,7 @@ return (
 );
 }
 
-// ─── Requests Tab ─────────────────────────────────────────────────────────────
+// ─── Requests Tab ────────────────────────────────────────────────────────────
 function RequestsTab({ apiFetch }) {
 const [items, setItems] = useState([]);
 const [filter, setFilter] = useState("Pending");
@@ -460,7 +544,7 @@ Msg {c.unread_messages>0 && <span style={{position:"absolute",top:-4,right:-4,ba
 );
 }
 
-// ─── Messages Tab ─────────────────────────────────────────────────────────────
+// ─── Messages Tab ────────────────────────────────────────────────────────────
 function MessagesTab({ apiFetch, selectedClient, onClearClient }) {
 const [clients, setClients] = useState([]);
 const [activeClient, setActiveClient] = useState(selectedClient);
@@ -531,6 +615,134 @@ border:"none",borderTop:"1px solid #edf2f7",cursor:"pointer",position:"relative"
 );
 }
 
+// ─── Documents Tab ────────────────────────────────────────────────────────────
+function DocumentsTab({ apiFetch }) {
+const [clients, setClients] = useState([]);
+const [activeClient, setActiveClient] = useState(null);
+const [docs, setDocs] = useState([]);
+const [file, setFile] = useState(null);
+const [desc, setDesc] = useState("");
+const [uploading, setUploading] = useState(false);
+const [msg, setMsg] = useState("");
+
+useEffect(() => { apiFetch("/admin/clients").then(setClients).catch(()=>{}); }, []);
+
+const loadDocs = useCallback((clientId) => {
+apiFetch(`/admin/clients/${clientId}/documents`).then(setDocs).catch(()=>{});
+}, [apiFetch]);
+
+useEffect(() => { if (activeClient) loadDocs(activeClient.id); }, [activeClient]);
+
+const upload = async () => {
+if (!file || !activeClient) return setMsg("Select a client and file first");
+setUploading(true); setMsg("");
+try {
+const fd = new FormData();
+fd.append("file", file);
+if (desc) fd.append("description", desc);
+const res = await fetch(API + `/admin/clients/${activeClient.id}/documents`, {
+method: "POST",
+headers: { Authorization: `Bearer ${localStorage.getItem("em_token")}` },
+body: fd,
+});
+const data = await res.json();
+if (!res.ok) throw new Error(data.message || "Upload failed");
+setMsg("✅ Uploaded!"); setFile(null); setDesc("");
+loadDocs(activeClient.id);
+} catch(e) { setMsg("Error: " + e.message); }
+setUploading(false);
+};
+
+const deleteDoc = async (docId) => {
+if (!window.confirm("Delete this document?")) return;
+try {
+await apiFetch(`/admin/documents/${docId}`, { method: "DELETE" });
+setDocs(docs.filter(d => d.id !== docId));
+} catch(e) { setMsg("Error: " + e.message); }
+};
+
+return (
+<div style={{display:"flex",gap:16,height:"calc(100vh - 120px)"}}>
+{/* Client List */}
+<div style={{width:240,background:"#fff",borderRadius:10,boxShadow:"0 1px 4px rgba(0,0,0,0.08)",overflow:"auto",flexShrink:0}}>
+<div style={{padding:"12px 16px",borderBottom:"1px solid #edf2f7",fontWeight:600,fontSize:13,color:"#4a5568"}}>Clients</div>
+{clients.map(c=>(
+<button key={c.id} onClick={()=>{setActiveClient(c);setMsg("");setDocs([]);}} style={{
+display:"block",width:"100%",textAlign:"left",padding:"10px 16px",
+background:activeClient?.id===c.id?"#ebf8ff":"transparent",
+border:"none",borderTop:"1px solid #edf2f7",cursor:"pointer"
+}}>
+<div style={{fontSize:13,fontWeight:500,color:"#1a202c"}}>{clientName(c)}</div>
+<div style={{fontSize:11,color:"#718096"}}>#{c.mailbox_number||"?"}</div>
+</button>
+))}
+</div>
+*div>
+
+{/* Document Panel */}
+<div style={{flex:1,display:"flex",flexDirection:"column",background:"#fff",borderRadius:10,boxShadow:"0 1px 4px rgba(0,0,0,0.08)",overflow:"hidden"}}>
+{!activeClient ? (
+<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"#718096",fontSize:14}}>
+Select a client to view their documents
+</div>
+) : (
+<>
+<div style={{padding:"14px 20px",borderBottom:"1px solid #edf2f7",fontWeight:600,fontSize:14}}>
+📁 {clientName(activeClient)} <span style={{color:"#718096",fontWeight:400,fontSize:12}}>#{activeClient.mailbox_number}</span>
+</div>
+
+{/* Upload Area */}
+<div style={{padding:"16px 20px",borderBottom:"1px solid #edf2f7",background:"#f7fafc"}}>
+<div style={{display:"flex",gap:12,alignItems:"flex-end",flexWrap:"wrap"}}>
+<div style={{flex:2,minWidth:180}}>
+<label style={labelStyle}>Upload Document (PDF or Image)</label>
+<input type="file" accept=".pdf,image/jpeg,image/png,image/gif,image/webp" onChange={e=>setFile(e.target.files[0])} style={{fontSize:13,width:"100%"}}/>
+</div>
+<div style={{flex:2,minWidth:180}}>
+<label style={labelStyle}>Description (optional)</label>
+<input value={desc} onChange={e=>setDesc(e.target.value)} style={{...inputStyle,marginBottom:0}} placeholder="e.g. Lease agreement, USPS 1583..."/>
+</div>
+<button onClick={upload} disabled={uploading||!file} style={{...btnStyle,flexShrink:0}}>{uploading?"Uploading...":"Upload"}</button>
+</div>
+{msg && <p style={{color:msg.startsWith("✅")?"#48bb78":"#e53e3e",fontSize:13,marginTop:8,marginBottom:0}}>{msg}</p>}
+</div>
+
+{/* Doc List */}
+<div style={{flex:1,overflowY:"auto",padding:16}}>
+{docs.length===0 ? (
+<div style={{textAlign:"center",color:"#718096",marginTop:40}}>No documents yet — upload the first one above</div>
+) : (
+<div style={{display:"flex",flexDirection:"column",gap:10}}>
+{docs.map(d=>(
+<div key={d.id} style={{display:"flex",alignItems:"center",padding:"12px 16px",background:"#f7fafc",borderRadius:8,border:"1px solid #e2e8f0"}}>
+<span style={{fontSize:28,marginRight:12}}>{d.file_type==="pdf"?"📄":"🖼️"}</span>
+<div style={{flex:1,minWidth:0}}>
+<div style={{fontWeight:500,fontSize:13,color:"#1a202c",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.original_filename}</div>
+<div style={{fontSize:11,color:"#718096",marginTop:2}}>
+{d.description && <span style={{marginRight:6}}>{d.description} •</span>}
+<span style={{color:d.uploaded_by_type==="admin"?"#4299e1":"#48bb78",fontWeight:500}}>
+{d.uploaded_by_type==="admin"?"Uploaded by admin":"Uploaded by client"}
+</span>
+{" • "}{d.created_at?.slice(0,10)}
+{" • "}{(d.file_size/1024).toFixed(0)} KB
+</div>
+</div>
+<div style={{display:"flex",gap:8,marginLeft:12,flexShrink:0}}>
+<a href={r2Url(d.file_url)} target="_blank" rel="noreferrer" style={{...btnSmall,background:"#4299e1",color:"#fff",textDecoration:"none",display:"inline-flex",alignItems:"center"}}>View</a>
+<button onClick={()=>deleteDoc(d.id)} style={{...btnSmall,background:"#e53e3e"}}>Delete</button>
+</div>
+</div>
+))}
+</div>
+)}
+</div>
+</>
+)}
+</div>
+</div>
+);
+}
+
 // ─── Shared Styles ────────────────────────────────────────────────────────────
 const inputStyle = {width:"100%",padding:"8px 12px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,boxSizing:"border-box",outline:"none"};
 const selectStyle = {width:"100%",padding:"8px 12px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,background:"#fff",outline:"none"};
@@ -574,6 +786,7 @@ return (
 {tab==="requests" && <RequestsTab apiFetch={apiFetch}/>}
 {tab==="clients" && <ClientsTab apiFetch={apiFetch} onMessage={openMessage}/>}
 {tab==="messages" && <MessagesTab apiFetch={apiFetch} selectedClient={msgClient} onClearClient={()=>setMsgClient(null)}/>}
+{tab==="documents" && <DocumentsTab apiFetch={apiFetch}/>}
 </main>
 </div>
 );
