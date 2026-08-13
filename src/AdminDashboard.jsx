@@ -424,6 +424,7 @@ const [pwValue, setPwValue] = useState("");
 const [pwMsg, setPwMsg] = useState("");
 const [pwSaving, setPwSaving] = useState(false);
 const [sortDir, setSortDir] = useState("asc");
+const [editEmail, setEditEmail] = useState("");
 
 const load = useCallback(() => {
 const q = search ? `?search=${encodeURIComponent(search)}` : "";
@@ -435,6 +436,7 @@ useEffect(()=>{ load(); },[load]);
 const save = async () => {
 try {
 await apiFetch(`/admin/clients/${editing}`, { method:"PUT", body:JSON.stringify(editData) });
+if (editEmail && editEmail.trim()) { await apiFetch(`/admin/clients/${editing}/email`, { method:"PUT", body:JSON.stringify({email:editEmail.trim()}) }); }
 setMsg("✅ Saved"); setEditing(null); load();
 } catch(e) { setMsg("Error: "+e.message); }
 };
@@ -510,7 +512,7 @@ return (
 <td style={tdStyle}>{c.mail_count}</td>
 <td style={tdStyle}>
 <div style={{display:"flex",gap:6}}>
-<button onClick={()=>{setEditing(c.id);setEditData({mailbox_number:c.mailbox_number||"",plan:c.plan,status:c.status,notes:c.notes||""});setMsg("");setPwValue("");setPwMsg("");}} style={{...btnSmall,background:"#4299e1"}}>Edit</button>
+<button onClick={()=>{setEditing(c.id);setEditData({mailbox_number:c.mailbox_number||"",plan:c.plan,status:c.status,notes:c.notes||""});setMsg("");setPwValue("");setPwMsg("");setEditEmail(c.user_email||"");}} style={{...btnSmall,background:"#4299e1"}}>Edit</button>
 <button onClick={()=>onMessage(c)} style={{...btnSmall,background:"#9f7aea",position:"relative"}}>
 Msg {c.unread_messages>0 && <span style={{position:"absolute",top:-4,right:-4,background:"#e53e3e",color:"#fff",borderRadius:8,fontSize:10,padding:"0 4px"}}>{c.unread_messages}</span>}
 </button>
@@ -540,6 +542,10 @@ Msg {c.unread_messages>0 && <span style={{position:"absolute",top:-4,right:-4,ba
 <div>
 <label style={labelStyle}>Notes</label>
 <input value={editData.notes} onChange={e=>setEditData({...editData,notes:e.target.value})} style={inputStyle} placeholder="Internal notes"/>
+</div>
+<div style={{gridColumn:"1/-1"}}>
+<label style={labelStyle}>Email</label>
+<input value={editEmail} onChange={e=>setEditEmail(e.target.value)} style={inputStyle} placeholder="client@email.com"/>
 </div>
 </div>
 <div style={{display:"flex",gap:8,marginTop:12}}>
