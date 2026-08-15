@@ -2,6 +2,11 @@ import { useState, useEffect, useCallback } from "react";
 
 const API = "https://eastlakemail.com/wp-json/eastlake/v1";
 
+// Rewrite private R2 S3 URLs → public R2.dev URLs so scans load
+const R2_PRIVATE = 'https://a8b5821d57c377017a1915d8dc8d2092.r2.cloudflarestorage.com/eastlake-mailbox/';
+const R2_PUBLIC  = 'https://pub-21228963971f4ec18abebc2520b9032b.r2.dev/';
+const r2Url = (url) => url ? url.replace(R2_PRIVATE, R2_PUBLIC) : url;
+
 function useAuth() {
   const [token, setToken] = useState(() => localStorage.getItem("em_token"));
   const [user, setUser]   = useState(null);
@@ -68,6 +73,7 @@ const NAV = [
   {id:"dashboard",label:"Dashboard",icon:"🏠"},
   {id:"mail",     label:"My Mail",  icon:"📬"},
   {id:"requests", label:"Requests", icon:"📋"},
+  {id:"usage",    label:"Usage",    icon:"📊"},
   {id:"messages", label:"Messages", icon:"💬"},
   {id:"profile",  label:"Profile",  icon:"👤"},
 ];
@@ -120,6 +126,7 @@ function ClientPortal() {
         {tab==="dashboard" && <ClientDashboard stats={stats} client={client} user={user} onTab={setTab}/>}
         {tab==="mail"      && <MailInbox apiFetch={apiFetch}/>}
         {tab==="requests"  && <RequestsView apiFetch={apiFetch}/>}
+        {tab==="usage"     && <UsageView apiFetch={apiFetch}/>}
         {tab==="messages"  && <MessagesView apiFetch={apiFetch} clientId={client?.id}/>}
         {tab==="profile"   && <ProfileView apiFetch={apiFetch} user={user}/>}
       </main>
@@ -144,7 +151,7 @@ function ClientDashboard({ stats, client, user, onTab }) {
       )}
       <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:16,marginBottom:24}}>
         {cards.map(c=>(
-          <button key={c.label} onClick={()=>onTab(c.tab)} style={{background:"#fff",borderRadius:10,padding:24,boxShadow:"0 1px 4px rgba(0,0,0,0.08)",borderLeft:`4px solid ${c.color}`,textAlign:"left",cursor:"pointer",border:`none`,borderLeft:`4px solid ${c.color}`}}>
+          <button key={c.label} onClick={()=>onTab(c.tab)} style={{background:"#fff",borderRadius:10,padding:24,boxShadow:"0 1px 4px rgba(0,0,0,0.08)",textAlign:"left",cursor:"pointer",border:"none",borderLeft:`4px solid ${c.color}`}}>
             <div style={{fontSize:32,fontWeight:700,color:c.color}}>{c.value}</div>
             <div style={{fontSize:13,color:"#718096",marginTop:4}}>{c.label}</div>
           </button>
@@ -168,7 +175,7 @@ function MailInbox({ apiFetch }) {
   const [items, setItems] = useState([]);
   const [selected, setSelected] = useState(null);
   const [showRequest, setShowRequest] = useState(false);
-  const [reqType, setReqType] = useState("Forward");
+  const [reqType, setReqType] = useState("Scan");
   const [reqData, setReqData] = useState({shipping_address:"",shipping_method:"Priority Mail",notes:""});
   const [msg, setMsg] = useState("");
 
@@ -191,9 +198,14 @@ function MailInbox({ apiFetch }) {
       })});
       setMsg("✅ Request submitted!");
       setShowRequest(false);
-      setItems(prev=>prev.map(i=>i.id===selected.id?{...i,status:reqType}:i));
+      // Scan is not a terminal action — keep the item viewable/actionable
+      const terminal = ["Forward","Shred","Pickup","Discard","Check Deposit"].includes(reqType);
+      setItems(prev=>prev.map(i=>i.id===selected.id?{...i,status:terminal?reqType:i.status}:i));
     } catch(e) { setMsg("Error: "+e.message); }
   };
+
+  const scanUrl = selected && selected.scan_url ? r2Url(selected.scan_url) : null;
+  const isPdf = scanUrl && /\.pdf($|\?)/i.test(scanUrl);
 
   return (
     <div style={{display:"flex",gap:16,height:"calc(100vh - 120px)"}}>
@@ -239,20 +251,31 @@ function MailInbox({ apiFetch }) {
             {selected.scan_url && (
               <div style={{marginBottom:20}}>
                 <div style={{fontSize:12,fontWeight:600,color:"#718096",marginBottom:8}}>SCAN</div>
-                <img src={selected.scan_url} alt="scan" style={{maxWidth:"100%",borderRadius:8,border:"1px solid #e2e8f0"}} onError={e=>{e.target.style.display="none";}}/>
-                <a href={selected.scan_url} target="_blank" rel="noreferrer" style={{display:"block",marginTop:8,fontSize:13,color:"#4299e1"}}>Open full scan ↗</a>
+                {isPdf
+                  ? <iframe src={scanUrl} title="scan" style={{width:"100%",height:460,border:"1px solid #e2e8f0",borderRadius:8}}/>
+                  : <img src={scanUrl} alt="scan" style={{maxWidth:"100%",borderRadius:8,border:"1px solid #e2e8f0"}} onError={e=>{e.target.style.display="none";}}/>}
+                <a href={scanUrl} target="_blank" rel="noreferrer" style={{display:"inline-block",marginTop:8,fontSize:13,color:"#4299e1"}}>Open full scan ↗</a>
               </div>
             )}
-            {!showRequest && !["Forward","Shred","Pickup"].includes(selected.status) && (
+            {!showRequest && !["Forward","Shred","Pickup","Discard","Check Deposit"].includes(selected.status) && (
               <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-                {["Forward","Pickup","Shred"].map(t=>(
-                  <button key={t} onClick={()=>{setReqType(t);setShowRequest(true);setMsg("");}} style={{...btnStyle,background:t==="Shred"?"#e53e3e":t==="Pickup"?"#ed8936":"#4299e1"}}>{t}</button>
+                {["Scan","Forward","Pickup","Shred","Discard","Check Deposit"].map(t=>(
+                  <button key={t} onClick={()=>{setReqType(t);setShowRequest(true);setMsg("");}} style={{...btnStyle,background:t==="Shred"?"#e53e3e":t==="Pickup"?"#ed8936":t==="Scan"?"#38b2ac":t==="Discard"?"#718096":t==="Check Deposit"?"#48bb78":"#4299e1"}}>{t}</button>
                 ))}
               </div>
             )}
             {showRequest && (
               <div style={{background:"#f7fafc",borderRadius:10,padding:20,marginTop:16}}>
                 <h3 style={{margin:"0 0 16px",fontSize:15}}>Request: {reqType}</h3>
+                {reqType==="Scan" && (
+                  <p style={{fontSize:12,color:"#718096",margin:"0 0 12px"}}>We'll scan this item and post it here. First 5 pages each month are free; additional pages are $0.75 each.</p>
+                )}
+                {reqType==="Check Deposit" && (
+                  <p style={{fontSize:12,color:"#718096",margin:"0 0 12px"}}>We'll deposit this check to the account on file. Add any account details or instructions in the notes below.</p>
+                )}
+                {reqType==="Discard" && (
+                  <p style={{fontSize:12,color:"#718096",margin:"0 0 12px"}}>We'll recycle/discard this item (no secure shredding). Choose Shred instead for confidential documents.</p>
+                )}
                 {reqType==="Forward" && (
                   <>
                     <label style={labelStyle}>Shipping Address</label>
@@ -307,6 +330,59 @@ function RequestsView({ apiFetch }) {
   );
 }
 
+function UsageView({ apiFetch }) {
+  const now = new Date();
+  const [month, setMonth] = useState(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`);
+  const [u, setU] = useState(null);
+  const [err, setErr] = useState("");
+  useEffect(()=>{ setU(null); setErr(""); apiFetch(`/me/usage?month=${month}`).then(setU).catch(e=>setErr(e.message||String(e))); },[month]);
+  const money = n => `$${Number(n||0).toFixed(2)}`;
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+        <h2 style={{...h2Style,margin:0}}>Usage & Billing</h2>
+        <input type="month" value={month} onChange={e=>setMonth(e.target.value)} style={{...inputStyle,width:170}}/>
+      </div>
+      {err && <div style={{background:"#fff5f5",color:"#c53030",padding:12,borderRadius:8,fontSize:13}}>Couldn't load usage right now. Please try again shortly.</div>}
+      {!u && !err && <div style={{color:"#718096"}}>Loading...</div>}
+      {u && (
+        <>
+          {u.trial && <div style={{background:"#f0fff4",border:"1px solid #9ae6b4",color:"#276749",borderRadius:10,padding:"12px 16px",marginBottom:16,fontSize:14}}>🎉 Free trial — no charges through September 30, 2026.</div>}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:20}}>
+            {[
+              {label:"Scan pages",value:u.scan_pages,sub:`${u.scan_free} free per month`},
+              {label:"Forwarding",value:u.forward_count,sub:"$2 each + postage"},
+              {label:"Shred",value:u.shred_count,sub:"$1 each"},
+            ].map(c=>(
+              <div key={c.label} style={{background:"#fff",borderRadius:10,padding:20,boxShadow:"0 1px 4px rgba(0,0,0,0.08)"}}>
+                <div style={{fontSize:30,fontWeight:700,color:"#1a202c"}}>{c.value}</div>
+                <div style={{fontSize:13,color:"#718096",marginTop:2}}>{c.label}</div>
+                <div style={{fontSize:11,color:"#a0aec0",marginTop:4}}>{c.sub}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{background:"#fff",borderRadius:10,padding:20,boxShadow:"0 1px 4px rgba(0,0,0,0.08)",maxWidth:440}}>
+            <h3 style={{margin:"0 0 12px",fontSize:15}}>This month's charges</h3>
+            {[
+              {label:`Scans (${u.scan_billable} billable pages × $0.75)`, val:u.charges.scan},
+              {label:`Forwarding (${u.forward_count} × $2)`,             val:u.charges.forward},
+              {label:`Shred (${u.shred_count} × $1)`,                    val:u.charges.shred},
+            ].map(r=>(
+              <div key={r.label} style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"6px 0",color:"#4a5568"}}>
+                <span>{r.label}</span><span>{money(r.val)}</span>
+              </div>
+            ))}
+            <div style={{display:"flex",justifyContent:"space-between",borderTop:"1px solid #edf2f7",marginTop:8,paddingTop:10,fontWeight:700,fontSize:15}}>
+              <span>Total</span><span>{u.trial?"$0.00 (trial)":money(u.charges.total)}</span>
+            </div>
+            <p style={{fontSize:11,color:"#a0aec0",marginTop:10}}>{u.note}</p>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function MessagesView({ apiFetch, clientId }) {
   const [messages, setMessages] = useState([]);
   const [newMsg, setNewMsg]     = useState("");
@@ -318,7 +394,9 @@ function MessagesView({ apiFetch, clientId }) {
   const send = async () => {
     if (!newMsg.trim()) return;
     setSending(true);
-    await apiFetch("/messages",{method:"POST",body:JSON.stringify({message:newMsg})});
+    const text = newMsg;
+    await apiFetch("/messages",{method:"POST",body:JSON.stringify({message:text})});
+    apiFetch("/me/notify-message",{method:"POST",body:JSON.stringify({message:text})}).catch(()=>{});
     setNewMsg(""); load(); setSending(false);
   };
 
@@ -402,7 +480,7 @@ const btnStyle    = {padding:"9px 18px",background:"#4299e1",color:"#fff",border
 const btnOutline  = {padding:"9px 18px",background:"#fff",color:"#4a5568",border:"1px solid #e2e8f0",borderRadius:6,cursor:"pointer",fontSize:13,fontFamily:"inherit"};
 const labelStyle  = {fontSize:12,fontWeight:500,color:"#4a5568",display:"block",marginBottom:4};
 const h2Style     = {fontSize:20,fontWeight:700,color:"#1a202c",marginBottom:20};
-const STATUS_COLORS = {New:"#4299e1",Opened:"#48bb78",Active:"#48bb78",Pending:"#ed8936",Approved:"#48bb78",Rejected:"#e53e3e",Completed:"#718096",Forward:"#9f7aea",Shred:"#e53e3e",Pickup:"#ed8936"};
+const STATUS_COLORS = {New:"#4299e1",Opened:"#48bb78",Active:"#48bb78",Pending:"#ed8936",Approved:"#48bb78",Rejected:"#e53e3e",Completed:"#718096",Forward:"#9f7aea",Shred:"#e53e3e",Pickup:"#ed8936",Scan:"#38b2ac",Discard:"#718096","Check Deposit":"#48bb78"};
 const StatusBadge = ({s}) => <span style={{padding:"2px 8px",borderRadius:10,fontSize:11,fontWeight:600,background:(STATUS_COLORS[s]||"#718096")+"22",color:STATUS_COLORS[s]||"#718096"}}>{s}</span>;
 
 export default ClientPortal;
