@@ -411,6 +411,59 @@ return (
 }
 
 // ─── Clients Tab ──────────────────────────────────────────────────────────────
+function AdminUsagePanel({ apiFetch, clientId }) {
+const now = new Date();
+const [month, setMonth] = useState(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`);
+const [u, setU] = useState(null);
+const [err, setErr] = useState("");
+const [savingId, setSavingId] = useState(null);
+const load = useCallback(() => {
+setU(null); setErr("");
+apiFetch(`/admin/clients/${clientId}/usage?month=${month}`).then(setU).catch(e=>setErr(e.message||String(e)));
+}, [apiFetch, clientId, month]);
+useEffect(()=>{ load(); }, [load]);
+const money = n => `${Number(n||0).toFixed(2)}`;
+const savePages = async (itemId, pages) => {
+setSavingId(itemId);
+try { await apiFetch(`/admin/mail-items/${itemId}/pages`, { method:"PUT", body:JSON.stringify({pages:Number(pages)||0}) }); load(); } catch(e) {}
+setSavingId(null);
+};
+if (err) return <div style={{color:"#e53e3e",fontSize:13}}>Couldn't load usage: {err}</div>;
+if (!u) return <div style={{color:"#718096",fontSize:13}}>Loading usage...</div>;
+return (
+<div>
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+<div style={{fontWeight:600,fontSize:14}}>📊 Usage & Billing {u.trial && <span style={{marginLeft:8,fontSize:11,color:"#276749",background:"#f0fff4",border:"1px solid #9ae6b4",borderRadius:8,padding:"2px 8px"}}>Free trial — $0</span>}</div>
+<input type="month" value={month} onChange={e=>setMonth(e.target.value)} style={{...inputStyle,width:160,marginBottom:0}}/>
+</div>
+<div style={{display:"flex",gap:24,marginBottom:12,fontSize:13}}>
+<div><strong>{u.scan_pages}</strong> scan pages <span style={{color:"#a0aec0"}}>({u.scan_free} free)</span></div>
+<div><strong>{u.forward_count}</strong> forwards</div>
+<div><strong>{u.shred_count}</strong> shreds</div>
+</div>
+<div style={{background:"#fff",borderRadius:8,padding:"10px 14px",maxWidth:380,fontSize:13,border:"1px solid #e2e8f0"}}>
+<div style={{display:"flex",justifyContent:"space-between",padding:"3px 0",color:"#4a5568"}}><span>Scans ({u.scan_billable} × $0.75)</span><span>{money(u.charges.scan)}</span></div>
+<div style={{display:"flex",justifyContent:"space-between",padding:"3px 0",color:"#4a5568"}}><span>Forwarding ({u.forward_count} × $2)</span><span>{money(u.charges.forward)}</span></div>
+<div style={{display:"flex",justifyContent:"space-between",padding:"3px 0",color:"#4a5568"}}><span>Shred ({u.shred_count} × $1)</span><span>{money(u.charges.shred)}</span></div>
+<div style={{display:"flex",justifyContent:"space-between",borderTop:"1px solid #edf2f7",marginTop:6,paddingTop:8,fontWeight:700}}><span>Total</span><span>{u.trial?"$0.00 (trial)":money(u.charges.total)}</span></div>
+</div>
+{u.scan_items && u.scan_items.length>0 && (
+<div style={{marginTop:12}}>
+<div style={{fontSize:12,fontWeight:600,color:"#718096",marginBottom:6}}>Scan page counts (edit a number to correct it)</div>
+{u.scan_items.map(it=>(
+<div key={it.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,fontSize:13}}>
+<span style={{color:"#4a5568",minWidth:80}}>Item #{it.id}</span>
+<input defaultValue={it.pages} onBlur={e=>{ if(Number(e.target.value)!==it.pages) savePages(it.id, e.target.value); }} style={{...inputStyle,width:70,marginBottom:0}}/>
+<span style={{color:"#a0aec0",fontSize:11}}>pages {savingId===it.id?"· saving...":""}</span>
+</div>
+))}
+</div>
+)}
+<p style={{fontSize:11,color:"#a0aec0",marginTop:10}}>{u.note}</p>
+</div>
+);
+}
+
 function ClientsTab({ apiFetch, onMessage }) {
 const [clients, setClients] = useState([]);
 const [search, setSearch] = useState("");
@@ -424,6 +477,7 @@ const [pwValue, setPwValue] = useState("");
 const [pwMsg, setPwMsg] = useState("");
 const [pwSaving, setPwSaving] = useState(false);
 const [sortDir, setSortDir] = useState("asc");
+const [usageId, setUsageId] = useState(null);
 const [editEmail, setEditEmail] = useState("");
 
 const load = useCallback(() => {
@@ -516,9 +570,17 @@ return (
 <button onClick={()=>onMessage(c)} style={{...btnSmall,background:"#9f7aea",position:"relative"}}>
 Msg {c.unread_messages>0 && <span style={{position:"absolute",top:-4,right:-4,background:"#e53e3e",color:"#fff",borderRadius:8,fontSize:10,padding:"0 4px"}}>{c.unread_messages}</span>}
 </button>
+<button onClick={()=>setUsageId(usageId===c.id?null:c.id)} style={{...btnSmall,background:"#38b2ac"}}>Usage</button>
 </div>
 </td>
 </tr>
+{usageId===c.id && (
+<tr key={`usage-${c.id}`} style={{background:"#f7fafc"}}>
+<td colSpan={7} style={{padding:16}}>
+<AdminUsagePanel apiFetch={apiFetch} clientId={c.id}/>
+</td>
+</tr>
+)}
 {editing===c.id && (
 <tr key={`edit-${c.id}`} style={{background:"#f7fafc"}}>
 <td colSpan={7} style={{padding:16}}>
