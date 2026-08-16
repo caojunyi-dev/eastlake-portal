@@ -206,6 +206,12 @@ setEditForm({ sender: item.sender||"", mail_type: item.mail_type||"Letter", tag:
 setEditFile(null); setEditMsg("");
 };
 
+const deleteItem = async (item) => {
+if (!window.confirm(`Delete mail item ${item.item_id || item.id}? This permanently removes it and cannot be undone.`)) return;
+try { await apiFetch(`/admin/mail-items/${item.id}/delete`, { method: "DELETE" }); setMsg("Mail item deleted"); load(); }
+catch (e) { setMsg("Delete failed: " + e.message); }
+};
+
 const saveEdit = async () => {
 setEditSaving(true); setEditMsg("");
 try {
@@ -299,7 +305,7 @@ return (
 <td style={tdStyle}>
 {editId===item.id
 ? <button onClick={()=>setEditId(null)} style={{...btnSmall,background:"#718096"}}>Cancel</button>
-: <button onClick={()=>openEdit(item)} style={{...btnSmall,background:"#667eea"}}>Edit</button>}
+: <><button onClick={()=>openEdit(item)} style={{...btnSmall,background:"#667eea"}}>Edit</button> <button onClick={()=>deleteItem(item)} style={{...btnSmall,background:"#e53e3e",marginLeft:4}}>Delete</button></>}
 </td>
 </tr>
 {editId===item.id && (
