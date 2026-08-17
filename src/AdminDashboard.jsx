@@ -366,6 +366,8 @@ function RequestsTab({ apiFetch }) {
 const [items, setItems] = useState([]);
 const [filter, setFilter] = useState("Pending");
 const [notes, setNotes] = useState({});
+const [scanFiles, setScanFiles] = useState({});
+const [busyReq, setBusyReq] = useState({});
 
 const load = useCallback(() => {
 apiFetch(`/admin/requests?status=${filter}`).then(setItems).catch(()=>{});
@@ -376,6 +378,23 @@ useEffect(()=>{ load(); },[load]);
 const update = async (id, status, staff_notes) => {
 await apiFetch(`/requests/${id}`, { method:"PUT", body:JSON.stringify({status, staff_notes}) });
 load();
+};
+
+const fulfillScan = async (r) => {
+const file = scanFiles[r.id];
+if (!file) return;
+setBusyReq(b=>({...b,[r.id]:true}));
+try {
+const fd = new FormData(); fd.append("file", file);
+const res = await fetch(API+"/upload", { method:"POST", headers:{Authorization:`Bearer ${localStorage.getItem("em_token")}`}, body:fd });
+if (!res.ok) throw new Error("Upload failed");
+const up = await res.json();
+await apiFetch(`/admin/mail-items/${r.mail_item_id}`, { method:"PUT", body:JSON.stringify({ scan_url: up.url, r2_key: up.r2_key }) });
+await apiFetch(`/requests/${r.id}`, { method:"PUT", body:JSON.stringify({ status:"Completed", staff_notes: notes[r.id]||"Scan uploaded" }) });
+setScanFiles(f=>{ const n={...f}; delete n[r.id]; return n; });
+load();
+} catch(e) { alert("Error: "+e.message); }
+setBusyReq(b=>({...b,[r.id]:false}));
 };
 
 return (
@@ -402,13 +421,20 @@ return (
 </div>
 <div style={{fontSize:12,color:"#718096"}}>{r.created_at?.slice(0,10)}</div>
 </div>
-{filter==="Pending" && (
+{filter==="Pending" && (/scan/i.test(r.request_type) ? (
+<div style={{marginTop:12,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+<span style={{fontSize:12,color:"#718096"}}>Upload scan:</span>
+<input type="file" accept="image/*,application/pdf" onChange={e=>setScanFiles({...scanFiles,[r.id]:e.target.files[0]})} style={{fontSize:13}}/>
+<button onClick={()=>fulfillScan(r)} disabled={busyReq[r.id]||!scanFiles[r.id]} style={{...btnStyle,background:"#38b2ac",padding:"8px 14px"}}>{busyReq[r.id]?"Uploading...":"Upload & Complete"}</button>
+<button onClick={()=>update(r.id,"Rejected",notes[r.id])} style={{...btnStyle,background:"#e53e3e",padding:"8px 14px"}}>Reject</button>
+</div>
+) : (
 <div style={{marginTop:12,display:"flex",gap:8,alignItems:"center"}}>
 <input placeholder="Staff notes (optional)" value={notes[r.id]||""} onChange={e=>setNotes({...notes,[r.id]:e.target.value})} style={{...inputStyle,flex:1,marginBottom:0}}/>
 <button onClick={()=>update(r.id,"Approved",notes[r.id])} style={{...btnStyle,background:"#48bb78",padding:"8px 14px"}}>Approve</button>
 <button onClick={()=>update(r.id,"Rejected",notes[r.id])} style={{...btnStyle,background:"#e53e3e",padding:"8px 14px"}}>Reject</button>
 </div>
-)}
+))}
 </div>
 ))}
 </div>
