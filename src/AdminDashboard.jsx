@@ -391,6 +391,7 @@ if (!res.ok) throw new Error("Upload failed");
 const up = await res.json();
 await apiFetch(`/admin/mail-items/${r.mail_item_id}`, { method:"PUT", body:JSON.stringify({ scan_url: up.url, r2_key: up.r2_key }) });
 await apiFetch(`/requests/${r.id}`, { method:"PUT", body:JSON.stringify({ status:"Completed", staff_notes: notes[r.id]||"Scan uploaded" }) });
+try { await apiFetch(`/admin/notify-scan-ready`, { method:"POST", body:JSON.stringify({ mail_item_id: r.mail_item_id }) }); } catch(_) {}
 setScanFiles(f=>{ const n={...f}; delete n[r.id]; return n; });
 load();
 } catch(e) { alert("Error: "+e.message); }
