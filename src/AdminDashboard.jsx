@@ -504,7 +504,7 @@ const [editing, setEditing] = useState(null);
 const [editData, setEditData] = useState({});
 const [msg, setMsg] = useState("");
 const [showAdd, setShowAdd] = useState(false);
-const [addData, setAddData] = useState({name:"",email:"",password:"",plan:"Standard",mailbox_number:"",status:"Active",notes:""});
+const [addData, setAddData] = useState({name:"",email:"",password:"",plan:"Standard",mailbox_number:"",status:"Active",notes:"",trial_ends:""});
 const [adding, setAdding] = useState(false);
 const [pwValue, setPwValue] = useState("");
 const [pwMsg, setPwMsg] = useState("");
@@ -523,6 +523,7 @@ useEffect(()=>{ load(); },[load]);
 const save = async () => {
 try {
 await apiFetch(`/admin/clients/${editing}`, { method:"PUT", body:JSON.stringify(editData) });
+try { await apiFetch(`/admin/clients/${editing}/trial`, { method:"PUT", body:JSON.stringify({trial_ends:editData.trial_ends||""}) }); } catch(e){}
 if (editEmail && editEmail.trim()) { await apiFetch(`/admin/clients/${editing}/email`, { method:"PUT", body:JSON.stringify({email:editEmail.trim()}) }); }
 setMsg("✅ Saved"); setEditing(null); load();
 } catch(e) { setMsg("Error: "+e.message); }
@@ -542,9 +543,10 @@ const addClient = async () => {
 if (!addData.name || !addData.email || !addData.password) return setMsg("Name, email, and password are required");
 setAdding(true); setMsg("");
 try {
-await apiFetch("/admin/clients", { method:"POST", body:JSON.stringify(addData) });
+const created = await apiFetch("/admin/clients", { method:"POST", body:JSON.stringify(addData) });
+if (addData.trial_ends && created && created.client_id) { try { await apiFetch(`/admin/clients/${created.client_id}/trial`, { method:"PUT", body:JSON.stringify({trial_ends:addData.trial_ends}) }); } catch(e){} }
 setMsg("✅ Client added!"); setShowAdd(false);
-setAddData({name:"",email:"",password:"",plan:"Standard",mailbox_number:"",status:"Active",notes:""});
+setAddData({name:"",email:"",password:"",plan:"Standard",mailbox_number:"",status:"Active",notes:"",trial_ends:""});
 load();
 } catch(e) { setMsg("Error: "+e.message); }
 setAdding(false);
@@ -568,8 +570,8 @@ return (
 <div><label style={labelStyle}>Email *</label><input value={addData.email} onChange={e=>setAddData({...addData,email:e.target.value})} style={inputStyle} placeholder="client@email.com"/></div>
 <div><label style={labelStyle}>Password *</label><input type="password" value={addData.password} onChange={e=>setAddData({...addData,password:e.target.value})} style={inputStyle} placeholder="Set initial password"/></div>
 <div><label style={labelStyle}>Mailbox Number</label><input value={addData.mailbox_number} onChange={e=>setAddData({...addData,mailbox_number:e.target.value})} style={inputStyle} placeholder="e.g. 142"/></div>
-<div><label style={labelStyle}>Plan</label><select value={addData.plan} onChange={e=>setAddData({...addData,plan:e.target.value})} style={selectStyle}>{["Essential","Grow","Primary","Standard"].map(p=><option key={p}>{p}</option>)}</select></div>
-<div><label style={labelStyle}>Status</label><select value={addData.status} onChange={e=>setAddData({...addData,status:e.target.value})} style={selectStyle}>{["Active","Pending","Suspended"].map(s=><option key={s}>{s}</option>)}</select></div>
+<div><label style={labelStyle}>Plan</label><select value={addData.plan} onChange={e=>setAddData({...addData,plan:e.target.value})} style={selectStyle}>{["Free Trial (Virtual)","Essential","Grow","Primary","Standard"].map(p=><option key={p}>{p}</option>)}</select></div>
+<div><label style={labelStyle}>Status</label><select value={addData.status} onChange={e=>setAddData({...addData,status:e.target.value})} style={selectStyle}>{["Active","Pending","Suspended"].map(s=><option key={s}>{s}</option>)}</select></div><div><label style={labelStyle}>Trial Ends</label><input type="date" value={addData.trial_ends} onChange={e=>setAddData({...addData,trial_ends:e.target.value})} style={inputStyle}/></div>
 <div style={{gridColumn:"1/-1"}}><label style={labelStyle}>Notes</label><input value={addData.notes} onChange={e=>setAddData({...addData,notes:e.target.value})} style={inputStyle} placeholder="Internal notes (optional)"/></div>
 </div>
 <div style={{display:"flex",gap:10,marginTop:16}}>
@@ -594,12 +596,12 @@ return (
 </td>
 <td style={tdStyle}><div style={{fontWeight:500}}>{clientName(c)}</div></td>
 <td style={tdStyle}>{c.user_email}</td>
-<td style={tdStyle}>{c.plan}</td>
+<td style={tdStyle}>{c.plan}{c.trial_ends && (()=>{const d=new Date(c.trial_ends+"T00:00:00");const t=new Date();t.setHours(0,0,0,0);const days=Math.round((d-t)/86400000);const col=days<0?"#e53e3e":days<=7?"#dd6b20":"#718096";return <div style={{fontSize:11,color:col}}>Trial ends {c.trial_ends}{days<0?" (expired)":""}</div>;})()}</td>
 <td style={tdStyle}><StatusBadge s={c.status}/></td>
 <td style={tdStyle}>{c.mail_count}</td>
 <td style={tdStyle}>
 <div style={{display:"flex",gap:6}}>
-<button onClick={()=>{setEditing(c.id);setEditData({mailbox_number:c.mailbox_number||"",plan:c.plan,status:c.status,notes:c.notes||""});setMsg("");setPwValue("");setPwMsg("");setEditEmail(c.user_email||"");}} style={{...btnSmall,background:"#4299e1"}}>Edit</button>
+<button onClick={()=>{setEditing(c.id);setEditData({mailbox_number:c.mailbox_number||"",plan:c.plan,status:c.status,notes:c.notes||"",trial_ends:c.trial_ends||""});setMsg("");setPwValue("");setPwMsg("");setEditEmail(c.user_email||"");}} style={{...btnSmall,background:"#4299e1"}}>Edit</button>
 <button onClick={()=>onMessage(c)} style={{...btnSmall,background:"#9f7aea",position:"relative"}}>
 Msg {c.unread_messages>0 && <span style={{position:"absolute",top:-4,right:-4,background:"#e53e3e",color:"#fff",borderRadius:8,fontSize:10,padding:"0 4px"}}>{c.unread_messages}</span>}
 </button>
@@ -625,7 +627,7 @@ Msg {c.unread_messages>0 && <span style={{position:"absolute",top:-4,right:-4,ba
 <div>
 <label style={labelStyle}>Plan</label>
 <select value={editData.plan} onChange={e=>setEditData({...editData,plan:e.target.value})} style={selectStyle}>
-{["Essential","Grow","Primary","Standard"].map(p=><option key={p}>{p}</option>)}
+{["Free Trial (Virtual)","Essential","Grow","Primary","Standard"].map(p=><option key={p}>{p}</option>)}
 </select>
 </div>
 <div>
@@ -637,6 +639,10 @@ Msg {c.unread_messages>0 && <span style={{position:"absolute",top:-4,right:-4,ba
 <div>
 <label style={labelStyle}>Notes</label>
 <input value={editData.notes} onChange={e=>setEditData({...editData,notes:e.target.value})} style={inputStyle} placeholder="Internal notes"/>
+</div>
+<div>
+<label style={labelStyle}>Trial Ends</label>
+<input type="date" value={editData.trial_ends||""} onChange={e=>setEditData({...editData,trial_ends:e.target.value})} style={inputStyle}/>
 </div>
 <div style={{gridColumn:"1/-1"}}>
 <label style={labelStyle}>Email</label>
