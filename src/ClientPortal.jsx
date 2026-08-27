@@ -72,7 +72,7 @@ function LoginScreen({ onLogin }) {
 const NAV = [
   {id:"dashboard",label:"Dashboard",icon:"🏠"},
   {id:"mail",     label:"My Mail",  icon:"📬"},
-  {id:"requests", label:"Requests", icon:"📋"},
+  {id:"requests", label:"Task History", icon:"📋"},
   {id:"usage",    label:"Usage",    icon:"📊"},
   {id:"messages", label:"Messages", icon:"💬"},
   {id:"profile",  label:"Profile",  icon:"👤"},
@@ -308,20 +308,21 @@ function RequestsView({ apiFetch }) {
   useEffect(()=>{ apiFetch("/requests").then(setItems).catch(()=>{}); },[]);
   return (
     <div>
-      <h2 style={h2Style}>My Requests</h2>
-      {items.length===0 && <div style={{textAlign:"center",padding:48,color:"#718096",background:"#fff",borderRadius:10}}>No requests yet</div>}
+      <h2 style={h2Style}>Task History</h2>
+      {items.length===0 && <div style={{textAlign:"center",padding:48,color:"#718096",background:"#fff",borderRadius:10}}>No activity yet</div>}
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         {items.map(r=>(
-          <div key={r.id} style={{background:"#fff",borderRadius:10,padding:20,boxShadow:"0 1px 4px rgba(0,0,0,0.08)"}}>
-            <div style={{display:"flex",justifyContent:"space-between"}}>
-              <div>
-                <span style={{fontWeight:600}}>{r.request_type}</span>
-                <span style={{marginLeft:8}}><StatusBadge s={r.status}/></span>
-                <div style={{fontSize:13,color:"#718096",marginTop:4}}>Item: <span style={{fontFamily:"monospace",color:"#4299e1"}}>{r.item_id||r.mail_item_id}</span></div>
-                {r.shipping_address && <div style={{fontSize:12,color:"#718096",marginTop:2}}>To: {r.shipping_address}</div>}
-                {r.staff_notes && <div style={{fontSize:12,color:"#4a5568",marginTop:4,background:"#f7fafc",padding:"6px 10px",borderRadius:6}}>Staff note: {r.staff_notes}</div>}
+          <div key={r.id} style={{background:"#fff",borderRadius:10,padding:18,boxShadow:"0 1px 4px rgba(0,0,0,0.08)",display:"flex",gap:14,alignItems:"flex-start"}}>
+            {(()=>{const c={Scan:"#38b2ac",Forward:"#4299e1",Pickup:"#ed8936",Shred:"#e53e3e",Discard:"#718096","Check Deposit":"#48bb78"}[r.request_type]||"#a0aec0";return <div style={{width:11,height:11,borderRadius:"50%",marginTop:6,flexShrink:0,background:c}}/>;})()}
+            <div style={{flex:1}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+                <span style={{fontWeight:600,color:"#1a202c"}}>{r.request_type}</span>
+                <StatusBadge s={r.status}/>
               </div>
-              <div style={{fontSize:12,color:"#718096"}}>{r.created_at?.slice(0,10)}</div>
+              <div style={{fontSize:13,color:"#718096",marginTop:4}}>Mail item <span style={{fontFamily:"monospace",color:"#4299e1"}}>{r.item_id||r.mail_item_id}</span></div>
+              {r.shipping_address && <div style={{fontSize:12,color:"#718096",marginTop:2}}>To: {r.shipping_address}</div>}
+              {r.staff_notes && <div style={{fontSize:12,color:"#718096",marginTop:2}}>Note: {r.staff_notes}</div>}
+              <div style={{fontSize:12,color:"#a0aec0",marginTop:6}}>Requested {r.created_at?.slice(0,10)}{(r.status==="Completed"||r.status==="Approved")&&r.updated_at&&r.updated_at.slice(0,10)!==(r.created_at||"").slice(0,10)?" · Completed "+r.updated_at.slice(0,10):""}</div>
             </div>
           </div>
         ))}
