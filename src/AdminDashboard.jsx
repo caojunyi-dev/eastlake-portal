@@ -95,7 +95,7 @@ const TABS = [
 {id:"mail", label:"📬 Mail Items"},
 {id:"requests", label:"📋 Requests"},
 {id:"clients", label:"👥 Clients"},
-{id:"messages", label:"💬 Messages"},
+{id:"payments",label:"💳 Payments"},{id:"messages", label:"💬 Messages"},
 {id:"documents", label:"📁 Documents"},
 ];
 
@@ -676,6 +676,69 @@ Msg {c.unread_messages>0 && <span style={{position:"absolute",top:-4,right:-4,ba
 }
 
 // ─── Messages Tab ────────────────────────────────────────────────────────────
+function PaymentsTab({ apiFetch }) {
+  const [clients, setClients] = useState([]);
+  const [rows, setRows] = useState([]);
+  const [form, setForm] = useState({client_id:"",amount:"",method:"Stripe",paid_at:"",note:""});
+  const [msg, setMsg] = useState("");
+  const load = () => apiFetch("/admin/payments").then(d=>setRows(Array.isArray(d)?d:[])).catch(()=>{});
+  useEffect(()=>{ apiFetch("/admin/clients").then(setClients).catch(()=>{}); load(); },[]);
+  const nameFor = (id) => { const c=clients.find(x=>String(x.id)===String(id)); return c?(c.display_name+" (#"+(c.mailbox_number||"?")+")"):("Client "+id); };
+  const record = async () => {
+    if(!form.client_id) return setMsg("Select a client");
+    if(!form.amount || parseFloat(form.amount)<=0) return setMsg("Enter an amount");
+    try { await apiFetch("/admin/payments",{method:"POST",body:JSON.stringify(form)}); setMsg("✅ Payment recorded"); setForm({client_id:"",amount:"",method:"Stripe",paid_at:"",note:""}); load(); }
+    catch(e){ setMsg("Error: "+e.message); }
+  };
+  const voidPay = async (id) => { if(!window.confirm("Void this payment record?")) return; await apiFetch("/admin/payments/"+id,{method:"DELETE"}); load(); };
+  const total = rows.reduce((a,r)=>a+parseFloat(r.amount||0),0);
+  return (
+    <div>
+      <h2 style={h2Style}>Payments</h2>
+      <div style={{background:"#fff",borderRadius:10,padding:20,marginBottom:20,boxShadow:"0 1px 4px rgba(0,0,0,0.08)"}}>
+        <h3 style={{margin:"0 0 14px",fontSize:15}}>Record a Payment</h3>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12}}>
+          <div style={{gridColumn:"1/3"}}><label style={labelStyle}>Client *</label>
+            <select value={form.client_id} onChange={e=>setForm({...form,client_id:e.target.value})} style={selectStyle}>
+              <option value="">Select client...</option>
+              {clients.map(c=><option key={c.id} value={c.id}>#{c.mailbox_number||"?"} {c.display_name}</option>)}
+            </select></div>
+          <div><label style={labelStyle}>Amount *</label><input value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})} style={inputStyle} placeholder="0.00"/></div>
+          <div><label style={labelStyle}>Method</label>
+            <select value={form.method} onChange={e=>setForm({...form,method:e.target.value})} style={selectStyle}>
+              {["Stripe","PayPal","Cash","Check","Zelle","Other"].map(m=><option key={m}>{m}</option>)}
+            </select></div>
+          <div><label style={labelStyle}>Date</label><input type="date" value={form.paid_at} onChange={e=>setForm({...form,paid_at:e.target.value})} style={inputStyle}/></div>
+          <div style={{gridColumn:"1/-1"}}><label style={labelStyle}>Note</label><input value={form.note} onChange={e=>setForm({...form,note:e.target.value})} style={inputStyle} placeholder="e.g. August mailbox plan"/></div>
+        </div>
+        {msg && <p style={{color:msg.startsWith("✅")?"#48bb78":"#e53e3e",fontSize:13,marginTop:8}}>{msg}</p>}
+        <button onClick={record} style={{...btnStyle,marginTop:12}}>Record Payment</button>
+      </div>
+      <div style={{background:"#fff",borderRadius:10,boxShadow:"0 1px 4px rgba(0,0,0,0.08)",overflow:"hidden"}}>
+        <div style={{padding:"12px 16px",borderBottom:"1px solid #edf2f7",fontWeight:600,fontSize:14,display:"flex",justifyContent:"space-between"}}>
+          <span>Payment History ({rows.length})</span><span style={{color:"#48bb78"}}>Total: ${total.toFixed(2)}</span>
+        </div>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+          <thead><tr style={{background:"#f7fafc"}}>{["Date","Client","Amount","Method","Note","Status",""].map(h=><th key={h} style={thStyle}>{h}</th>)}</tr></thead>
+          <tbody>
+            {rows.length===0 && <tr><td colSpan={7} style={{textAlign:"center",padding:32,color:"#718096"}}>No payments yet</td></tr>}
+            {rows.map(r=>(
+              <tr key={r.id} style={{borderTop:"1px solid #edf2f7"}}>
+                <td style={tdStyle}>{(r.paid_at||r.created_at||"").slice(0,10)}</td>
+                <td style={tdStyle}>{nameFor(r.client_id)}</td>
+                <td style={tdStyle}>${parseFloat(r.amount||0).toFixed(2)}</td>
+                <td style={tdStyle}>{r.method}</td>
+                <td style={tdStyle}>{r.note}</td>
+                <td style={tdStyle}><StatusBadge s={r.status||"Paid"}/></td>
+                <td style={tdStyle}><button onClick={()=>voidPay(r.id)} style={{...btnSmall,background:"#e53e3e"}}>Void</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 function MessagesTab({ apiFetch, selectedClient, onClearClient }) {
 const [clients, setClients] = useState([]);
 const [activeClient, setActiveClient] = useState(selectedClient);
@@ -916,7 +979,8 @@ return (
 {tab==="mail" && <MailTab apiFetch={apiFetch}/>}
 {tab==="requests" && <RequestsTab apiFetch={apiFetch}/>}
 {tab==="clients" && <ClientsTab apiFetch={apiFetch} onMessage={openMessage}/>}
-{tab==="messages" && <MessagesTab apiFetch={apiFetch} selectedClient={msgClient} onClearClient={()=>setMsgClient(null)}/>}
+{tab==="payments"  && <PaymentsTab apiFetch={apiFetch}/>}
+        {tab==="messages" && <MessagesTab apiFetch={apiFetch} selectedClient={msgClient} onClearClient={()=>setMsgClient(null)}/>}
 {tab==="documents" && <DocumentsTab apiFetch={apiFetch}/>}
 </main>
 </div>
