@@ -475,6 +475,39 @@ function PaymentsView({ apiFetch }) {
     </div>
   );
 }
+function ChangePassword({ apiFetch }) {
+  const [cur, setCur] = useState("");
+  const [nw, setNw] = useState("");
+  const [cf, setCf] = useState("");
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    setMsg("");
+    if (nw.length < 8) return setMsg("New password must be at least 8 characters.");
+    if (nw !== cf) return setMsg("New passwords do not match.");
+    setBusy(true);
+    try {
+      await apiFetch("/me/password", { method:"POST", body:JSON.stringify({current_password:cur, new_password:nw}) });
+      setMsg("✅ Password changed! Use your new password next time you log in.");
+      setCur(""); setNw(""); setCf("");
+    } catch(e) {
+      let m = "Could not change password.";
+      try { const j = JSON.parse(e.message); if (j.message) m = j.message; } catch(_) {}
+      setMsg(m);
+    }
+    setBusy(false);
+  };
+  return (
+    <div>
+      <h3 style={{margin:"0 0 12px",fontSize:15,color:"#1a202c"}}>Change Password</h3>
+      <div style={{marginBottom:12}}><label style={labelStyle}>Current password</label><input type="password" value={cur} onChange={e=>setCur(e.target.value)} style={inputStyle}/></div>
+      <div style={{marginBottom:12}}><label style={labelStyle}>New password</label><input type="password" value={nw} onChange={e=>setNw(e.target.value)} style={inputStyle} placeholder="At least 8 characters"/></div>
+      <div style={{marginBottom:12}}><label style={labelStyle}>Confirm new password</label><input type="password" value={cf} onChange={e=>setCf(e.target.value)} style={inputStyle}/></div>
+      {msg && <p style={{color:msg.startsWith("✅")?"#48bb78":"#e53e3e",fontSize:13,marginBottom:10}}>{msg}</p>}
+      <button onClick={submit} disabled={busy} style={btnStyle}>{busy?"Saving...":"Change Password"}</button>
+    </div>
+  );
+}
 function ProfileView({ apiFetch, user }) {
   const [form, setForm] = useState({display_name:user.name,phone:"",forwarding_address:""});
   const [loaded, setLoaded] = useState(false);
@@ -515,6 +548,7 @@ function ProfileView({ apiFetch, user }) {
         </div>
         {msg && <p style={{color:msg.startsWith("✅")?"#48bb78":"#e53e3e",fontSize:13,marginBottom:12}}>{msg}</p>}
         <button onClick={save} style={btnStyle}>Save Profile</button>
+        <div style={{marginTop:20,paddingTop:20,borderTop:"1px solid #edf2f7"}}><ChangePassword apiFetch={apiFetch}/></div>
       </div>
     </div>
   );
