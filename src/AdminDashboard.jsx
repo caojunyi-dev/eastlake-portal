@@ -571,7 +571,7 @@ return (
 <div><label style={labelStyle}>Email *</label><input value={addData.email} onChange={e=>setAddData({...addData,email:e.target.value})} style={inputStyle} placeholder="client@email.com"/></div>
 <div><label style={labelStyle}>Password *</label><input type="password" value={addData.password} onChange={e=>setAddData({...addData,password:e.target.value})} style={inputStyle} placeholder="Set initial password"/></div>
 <div><label style={labelStyle}>Mailbox Number</label><input value={addData.mailbox_number} onChange={e=>setAddData({...addData,mailbox_number:e.target.value})} style={inputStyle} placeholder="e.g. 142"/></div>
-<div><label style={labelStyle}>Plan</label><select value={addData.plan} onChange={e=>setAddData({...addData,plan:e.target.value})} style={selectStyle}>{["Free Trial (Virtual)","Courtesy Weekly Envelope Image","Essential","Grow","Primary","Standard"].map(p=><option key={p}>{p}</option>)}</select></div>
+<div><label style={labelStyle}>Plan</label><select value={addData.plan} onChange={e=>setAddData({...addData,plan:e.target.value})} style={selectStyle}>{["Free Trial (Virtual)","Weekly Courtesy Envelope Photo (Free)","Essential","Grow","Primary","Standard"].map(p=><option key={p}>{p}</option>)}</select></div>
 <div><label style={labelStyle}>Status</label><select value={addData.status} onChange={e=>setAddData({...addData,status:e.target.value})} style={selectStyle}>{["Active","Pending","Suspended"].map(s=><option key={s}>{s}</option>)}</select></div><div><label style={labelStyle}>Trial Ends</label><input type="date" value={addData.trial_ends} onChange={e=>setAddData({...addData,trial_ends:e.target.value})} style={inputStyle}/></div>
 <div style={{gridColumn:"1/-1"}}><label style={labelStyle}>Notes</label><input value={addData.notes} onChange={e=>setAddData({...addData,notes:e.target.value})} style={inputStyle} placeholder="Internal notes (optional)"/></div>
 </div>
@@ -628,7 +628,7 @@ Msg {c.unread_messages>0 && <span style={{position:"absolute",top:-4,right:-4,ba
 <div>
 <label style={labelStyle}>Plan</label>
 <select value={editData.plan} onChange={e=>setEditData({...editData,plan:e.target.value})} style={selectStyle}>
-{["Free Trial (Virtual)","Courtesy Weekly Envelope Image","Essential","Grow","Primary","Standard"].map(p=><option key={p}>{p}</option>)}
+{["Free Trial (Virtual)","Weekly Courtesy Envelope Photo (Free)","Essential","Grow","Primary","Standard"].map(p=><option key={p}>{p}</option>)}
 </select>
 </div>
 <div>
