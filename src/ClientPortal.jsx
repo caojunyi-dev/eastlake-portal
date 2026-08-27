@@ -204,8 +204,21 @@ function MailInbox({ apiFetch }) {
     } catch(e) { setMsg("Error: "+e.message); }
   };
 
+  const [scanBlob, setScanBlob] = useState(null);
+  useEffect(() => {
+    setScanBlob(null);
+    if (!selected || !selected.scan_url) return;
+    let objUrl = null, cancelled = false;
+    const tk = localStorage.getItem("em_token");
+    fetch(API + "/me/scan/" + selected.id, { headers: { Authorization: "Bearer " + tk } })
+      .then(r => r.ok ? r.blob() : Promise.reject())
+      .then(b => { if (!cancelled) { objUrl = URL.createObjectURL(b); setScanBlob(objUrl); } })
+      .catch(() => {});
+    return () => { cancelled = true; if (objUrl) URL.revokeObjectURL(objUrl); };
+  }, [selected && selected.id]);
   const scanUrl = selected && selected.scan_url ? r2Url(selected.scan_url) : null;
   const isPdf = scanUrl && /\.pdf($|\?)/i.test(scanUrl);
+  const viewUrl = scanBlob || scanUrl;
 
   return (
     <div style={{display:"flex",gap:16,height:"calc(100vh - 120px)"}}>
@@ -252,7 +265,7 @@ function MailInbox({ apiFetch }) {
               <div style={{marginBottom:20}}>
                 <div style={{fontSize:12,fontWeight:600,color:"#718096",marginBottom:8}}>SCAN</div>
                 {isPdf
-                  ? <object data={scanUrl} type="application/pdf" style={{width:"100%",height:460,border:"1px solid #e2e8f0",borderRadius:8}}><div style={{padding:24,textAlign:"center",color:"#718096",fontSize:13}}>Your scan is ready — use the View / Download button below to open it.</div></object>
+                  ? <object data={viewUrl} type="application/pdf" style={{width:"100%",height:460,border:"1px solid #e2e8f0",borderRadius:8}}><div style={{padding:24,textAlign:"center",color:"#718096",fontSize:13}}>Your scan is ready — use the View / Download button below to open it.</div></object>
                   : <img src={scanUrl} alt="scan" style={{maxWidth:"100%",borderRadius:8,border:"1px solid #e2e8f0"}} onError={e=>{e.target.style.display="none";}}/>}
                 <a href={scanUrl} target="_blank" rel="noreferrer" style={{display:"inline-block",marginTop:10,padding:"10px 18px",background:"#4299e1",color:"#fff",borderRadius:6,fontSize:14,fontWeight:600,textDecoration:"none"}}>📄 View / Download Scan</a>
               </div>
