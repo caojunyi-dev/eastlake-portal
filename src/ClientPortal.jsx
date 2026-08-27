@@ -75,6 +75,7 @@ const NAV = [
   {id:"requests", label:"Task History", icon:"📋"},
   {id:"usage",    label:"Usage",    icon:"📊"},
   {id:"messages", label:"Messages", icon:"💬"},
+  {id:"payments",label:"Billing",icon:"💳"},
   {id:"profile",  label:"Profile",  icon:"👤"},
 ];
 
@@ -128,6 +129,7 @@ function ClientPortal() {
         {tab==="requests"  && <RequestsView apiFetch={apiFetch}/>}
         {tab==="usage"     && <UsageView apiFetch={apiFetch}/>}
         {tab==="messages"  && <MessagesView apiFetch={apiFetch} clientId={client?.id}/>}
+        {tab==="payments" && <PaymentsView apiFetch={apiFetch}/>}
         {tab==="profile"   && <ProfileView apiFetch={apiFetch} user={user}/>}
       </main>
     </div>
@@ -439,6 +441,40 @@ function MessagesView({ apiFetch, clientId }) {
   );
 }
 
+function PaymentsView({ apiFetch }) {
+  const [rows, setRows] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(()=>{ apiFetch("/me/payments").then(d=>{setRows(Array.isArray(d)?d:[]);setLoaded(true);}).catch(()=>setLoaded(true)); },[]);
+  const total = rows.reduce((a,r)=>a+parseFloat(r.amount||0),0);
+  return (
+    <div>
+      <h2 style={h2Style}>Billing & Payments</h2>
+      <div style={{background:"#ebf8ff",border:"1px solid #bee3f8",borderRadius:10,padding:16,marginBottom:20,fontSize:13,color:"#2c5282"}}>
+        Online payment is coming soon. For now, please pay via the invoice or link we send you — your payments will appear here automatically.
+      </div>
+      <div style={{background:"#fff",borderRadius:10,boxShadow:"0 1px 4px rgba(0,0,0,0.08)",overflow:"hidden"}}>
+        <div style={{padding:"14px 18px",borderBottom:"1px solid #edf2f7",fontWeight:600,fontSize:14,display:"flex",justifyContent:"space-between"}}>
+          <span>Payment History</span>
+          <span style={{color:"#48bb78"}}>Total paid: ${total.toFixed(2)}</span>
+        </div>
+        {!loaded && <div style={{padding:24,color:"#718096",fontSize:13}}>Loading...</div>}
+        {loaded && rows.length===0 && <div style={{padding:32,textAlign:"center",color:"#718096",fontSize:13}}>No payments yet</div>}
+        {rows.map(r=>(
+          <div key={r.id} style={{padding:"12px 18px",borderTop:"1px solid #edf2f7",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <div style={{fontWeight:600,color:"#1a202c",fontSize:14}}>${parseFloat(r.amount||0).toFixed(2)} <span style={{fontWeight:400,color:"#718096",fontSize:12}}>· {r.method}</span></div>
+              {r.note && <div style={{fontSize:12,color:"#718096",marginTop:2}}>{r.note}</div>}
+            </div>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontSize:12,color:"#718096"}}>{(r.paid_at||r.created_at||"").slice(0,10)}</div>
+              <span style={{padding:"2px 8px",borderRadius:10,fontSize:11,fontWeight:600,background:"#48bb7822",color:"#48bb78"}}>{r.status||"Paid"}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 function ProfileView({ apiFetch, user }) {
   const [form, setForm] = useState({display_name:user.name,phone:"",forwarding_address:""});
   const [loaded, setLoaded] = useState(false);
