@@ -680,9 +680,12 @@ function PaymentsTab({ apiFetch }) {
   const [clients, setClients] = useState([]);
   const [rows, setRows] = useState([]);
   const [form, setForm] = useState({client_id:"",amount:"",method:"Stripe",paid_at:"",note:""});
+  const [links, setLinks] = useState({});
+  const [lmsg, setLmsg] = useState("");
   const [msg, setMsg] = useState("");
   const load = () => apiFetch("/admin/payments").then(d=>setRows(Array.isArray(d)?d:[])).catch(()=>{});
   useEffect(()=>{ apiFetch("/admin/clients").then(setClients).catch(()=>{}); load(); },[]);
+  useEffect(()=>{ apiFetch("/admin/billing-links").then(d=>setLinks(d||{})).catch(()=>{}); },[]);
   const nameFor = (id) => { const c=clients.find(x=>String(x.id)===String(id)); return c?(c.display_name+" (#"+(c.mailbox_number||"?")+")"):("Client "+id); };
   const record = async () => {
     if(!form.client_id) return setMsg("Select a client");
@@ -691,10 +694,24 @@ function PaymentsTab({ apiFetch }) {
     catch(e){ setMsg("Error: "+e.message); }
   };
   const voidPay = async (id) => { if(!window.confirm("Void this payment record?")) return; await apiFetch("/admin/payments/"+id,{method:"DELETE"}); load(); };
+  const setLink = (k,v) => setLinks({...links,[k]:v});
+  const saveLinks = async () => { try { await apiFetch("/admin/billing-links",{method:"POST",body:JSON.stringify({links})}); setLmsg("✅ Links saved"); } catch(e){ setLmsg("Error: "+e.message); } };
   const total = rows.reduce((a,r)=>a+parseFloat(r.amount||0),0);
   return (
     <div>
       <h2 style={h2Style}>Payments</h2>
+      <div style={{background:"#fff",borderRadius:10,padding:20,marginBottom:20,boxShadow:"0 1px 4px rgba(0,0,0,0.08)"}}>
+        <h3 style={{margin:"0 0 6px",fontSize:15}}>Stripe Payment Links</h3>
+        <div style={{fontSize:12,color:"#718096",marginBottom:14}}>Paste each plan’s Stripe Payment Link (subscription) and your Customer Portal link. Clients then see a Subscribe / Manage Billing button in their portal.</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}}>
+          {["Essential","Grow","Primary","Standard"].map(p=>(
+            <div key={p}><label style={labelStyle}>{p} plan link</label><input value={links[p]||""} onChange={e=>setLink(p,e.target.value)} style={inputStyle} placeholder="https://buy.stripe.com/..."/></div>
+          ))}
+          <div style={{gridColumn:"1/-1"}}><label style={labelStyle}>Customer Portal link (Manage Billing)</label><input value={links["_portal"]||""} onChange={e=>setLink("_portal",e.target.value)} style={inputStyle} placeholder="https://billing.stripe.com/p/login/..."/></div>
+        </div>
+        {lmsg && <p style={{color:lmsg.startsWith("✅")?"#48bb78":"#e53e3e",fontSize:13,marginTop:8}}>{lmsg}</p>}
+        <button onClick={saveLinks} style={{...btnStyle,marginTop:12}}>Save Links</button>
+      </div>
       <div style={{background:"#fff",borderRadius:10,padding:20,marginBottom:20,boxShadow:"0 1px 4px rgba(0,0,0,0.08)"}}>
         <h3 style={{margin:"0 0 14px",fontSize:15}}>Record a Payment</h3>
         <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12}}>
