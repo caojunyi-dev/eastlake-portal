@@ -521,6 +521,7 @@ apiFetch("/admin/clients"+q).then(setClients).catch(()=>{});
 useEffect(()=>{ load(); },[load]);
 
 const save = async () => {
+    try { await apiFetch(`/admin/clients/${editing}/company`,{method:"POST",body:JSON.stringify({company:editData.company||""})}); } catch(e){}
 try {
 await apiFetch(`/admin/clients/${editing}`, { method:"PUT", body:JSON.stringify(editData) });
 try { await apiFetch(`/admin/clients/${editing}/trial`, { method:"PUT", body:JSON.stringify({trial_ends:editData.trial_ends||""}) }); } catch(e){}
@@ -601,7 +602,7 @@ return (
 <td style={tdStyle}>{c.mail_count}</td>
 <td style={tdStyle}>
 <div style={{display:"flex",gap:6}}>
-<button onClick={()=>{setEditing(c.id);setEditData({mailbox_number:c.mailbox_number||"",plan:c.plan,status:c.status,notes:c.notes||"",trial_ends:c.trial_ends||""});setMsg("");setPwValue("");setPwMsg("");setEditEmail(c.user_email||"");}} style={{...btnSmall,background:"#4299e1"}}>Edit</button>
+<button onClick={()=>{setEditing(c.id);setEditData({mailbox_number:c.mailbox_number||"",plan:c.plan,status:c.status,notes:c.notes||"",trial_ends:c.trial_ends||"",company:c.company||""});setMsg("");setPwValue("");setPwMsg("");setEditEmail(c.user_email||"");}} style={{...btnSmall,background:"#4299e1"}}>Edit</button>
 <button onClick={()=>onMessage(c)} style={{...btnSmall,background:"#9f7aea",position:"relative"}}>
 Msg {c.unread_messages>0 && <span style={{position:"absolute",top:-4,right:-4,background:"#e53e3e",color:"#fff",borderRadius:8,fontSize:10,padding:"0 4px"}}>{c.unread_messages}</span>}
 </button>
@@ -619,7 +620,7 @@ Msg {c.unread_messages>0 && <span style={{position:"absolute",top:-4,right:-4,ba
 {editing===c.id && (
 <tr key={`edit-${c.id}`} style={{background:"#f7fafc"}}>
 <td colSpan={7} style={{padding:16}}>
-<div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
+<div style={{fontSize:13,color:"#4a5568",marginBottom:12,fontWeight:600}}>Renter ID {c.id}{c.company?" · "+c.company:""}</div><div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}><div><label style={labelStyle}>Company</label><input value={editData.company||""} onChange={e=>setEditData({...editData,company:e.target.value})} style={inputStyle} placeholder="Company name"/></div>
 <div>
 <label style={labelStyle}>Mailbox Number</label>
 <input value={editData.mailbox_number} onChange={e=>setEditData({...editData,mailbox_number:e.target.value})} style={inputStyle} placeholder="e.g. 142"/>
