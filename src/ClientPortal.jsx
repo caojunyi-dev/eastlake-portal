@@ -252,9 +252,9 @@ function MailInbox({ apiFetch }) {
               <div style={{marginBottom:20}}>
                 <div style={{fontSize:12,fontWeight:600,color:"#718096",marginBottom:8}}>SCAN</div>
                 {isPdf
-                  ? <iframe src={scanUrl} title="scan" style={{width:"100%",height:460,border:"1px solid #e2e8f0",borderRadius:8}}/>
+                  ? <object data={scanUrl} type="application/pdf" style={{width:"100%",height:460,border:"1px solid #e2e8f0",borderRadius:8}}><div style={{padding:24,textAlign:"center",color:"#718096",fontSize:13}}>Your scan is ready — use the View / Download button below to open it.</div></object>
                   : <img src={scanUrl} alt="scan" style={{maxWidth:"100%",borderRadius:8,border:"1px solid #e2e8f0"}} onError={e=>{e.target.style.display="none";}}/>}
-                <a href={scanUrl} target="_blank" rel="noreferrer" style={{display:"inline-block",marginTop:8,fontSize:13,color:"#4299e1"}}>Open full scan ↗</a>
+                <a href={scanUrl} target="_blank" rel="noreferrer" style={{display:"inline-block",marginTop:10,padding:"10px 18px",background:"#4299e1",color:"#fff",borderRadius:6,fontSize:14,fontWeight:600,textDecoration:"none"}}>📄 View / Download Scan</a>
               </div>
             )}
             {!showRequest && !["Forward","Shred","Pickup","Discard","Check Deposit"].includes(selected.status) && (
