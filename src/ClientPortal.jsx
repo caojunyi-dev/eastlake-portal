@@ -79,8 +79,18 @@ const NAV = [
   {id:"profile",  label:"Profile",  icon:"👤"},
 ];
 
+function useIsMobile() {
+  const [m, setM] = useState(typeof window !== "undefined" && window.innerWidth <= 640);
+  useEffect(() => {
+    const h = () => setM(window.innerWidth <= 640);
+    window.addEventListener("resize", h);
+    return () => window.removeEventListener("resize", h);
+  }, []);
+  return m;
+}
 function ClientPortal() {
   const { user, login, logout, apiFetch, loading } = useAuth();
+  const isMobile = useIsMobile();
   const [tab, setTab]   = useState("dashboard");
   const [stats, setStats] = useState(null);
 
@@ -95,9 +105,9 @@ function ClientPortal() {
   const client = user.client;
 
   return (
-    <div style={{display:"flex",fontFamily:"'Inter',system-ui,sans-serif",minHeight:"100vh",background:"#f0f4f8"}}>
+    <div style={{display:"flex",fontFamily:"'Inter',system-ui,sans-serif",minHeight:"100vh",background:"#f0f4f8",flexDirection:isMobile?"column":"row"}}>
       {/* Sidebar */}
-      <div style={{width:220,background:"#1a202c",minHeight:"100vh",display:"flex",flexDirection:"column",flexShrink:0}}>
+      <div style={{width:isMobile?"100%":220,background:"#1a202c",minHeight:isMobile?"auto":"100vh",display:"flex",flexDirection:"column",flexShrink:0}}>
         <div style={{padding:"20px 16px",borderBottom:"1px solid #2d3748"}}>
           <div style={{color:"#fff",fontWeight:700,fontSize:15}}>Eastlake Mailbox</div>
           <div style={{color:"#68d391",fontSize:12,marginTop:2}}>
@@ -123,7 +133,7 @@ function ClientPortal() {
         </div>
       </div>
       {/* Main */}
-      <main style={{flex:1,padding:28,overflowY:"auto"}}>
+      <main style={{flex:1,padding:isMobile?16:28,overflowY:isMobile?"visible":"auto"}}>
         {tab==="dashboard" && <ClientDashboard stats={stats} client={client} user={user} onTab={setTab}/>}
         {tab==="mail"      && <MailInbox apiFetch={apiFetch}/>}
         {tab==="requests"  && <RequestsView apiFetch={apiFetch}/>}
