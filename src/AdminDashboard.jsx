@@ -704,9 +704,10 @@ function PaymentsTab({ apiFetch }) {
         <h3 style={{margin:"0 0 6px",fontSize:15}}>Stripe Payment Links</h3>
         <div style={{fontSize:12,color:"#718096",marginBottom:14}}>Paste each plan’s Stripe Payment Link (subscription) and your Customer Portal link. Clients then see a Subscribe / Manage Billing button in their portal.</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}}>
-          {["Essential","Grow","Primary","Standard"].map(p=>(
-            <div key={p}><label style={labelStyle}>{p} plan link</label><input value={links[p]||""} onChange={e=>setLink(p,e.target.value)} style={inputStyle} placeholder="https://buy.stripe.com/..."/></div>
-          ))}
+          {["Essential","Grow","Primary"].flatMap(p=>[
+            <div key={p+"_q"}><label style={labelStyle}>{p} — Quarterly</label><input value={links[p+"_q"]||""} onChange={e=>setLink(p+"_q",e.target.value)} style={inputStyle} placeholder="https://buy.stripe.com/..."/></div>,
+            <div key={p+"_y"}><label style={labelStyle}>{p} — Yearly</label><input value={links[p+"_y"]||""} onChange={e=>setLink(p+"_y",e.target.value)} style={inputStyle} placeholder="https://buy.stripe.com/..."/></div>
+          ])}
           <div style={{gridColumn:"1/-1"}}><label style={labelStyle}>Customer Portal link (Manage Billing)</label><input value={links["_portal"]||""} onChange={e=>setLink("_portal",e.target.value)} style={inputStyle} placeholder="https://billing.stripe.com/p/login/..."/></div>
         </div>
         {lmsg && <p style={{color:lmsg.startsWith("✅")?"#48bb78":"#e53e3e",fontSize:13,marginTop:8}}>{lmsg}</p>}
