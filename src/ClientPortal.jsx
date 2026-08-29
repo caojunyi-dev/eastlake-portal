@@ -461,8 +461,8 @@ function PaymentsView({ apiFetch }) {
   return (
     <div>
       <h2 style={h2Style}>Billing & Payments</h2>
-      {links && (links.subscribe_url || links.portal_url)
-        ? <div style={{display:"flex",gap:12,marginBottom:20,flexWrap:"wrap"}}>{links.subscribe_url && <a href={links.subscribe_url} target="_blank" rel="noreferrer" style={{background:"#635bff",color:"#fff",padding:"12px 20px",borderRadius:8,fontWeight:600,fontSize:14,textDecoration:"none"}}>Subscribe / Pay</a>}{links.portal_url && <a href={links.portal_url} target="_blank" rel="noreferrer" style={{background:"#fff",color:"#4a5568",border:"1px solid #e2e8f0",padding:"12px 20px",borderRadius:8,fontWeight:600,fontSize:14,textDecoration:"none"}}>Manage Billing</a>}</div>
+      {links && ((links.options && links.options.length) || links.portal_url)
+        ? <div style={{display:"flex",gap:12,marginBottom:20,flexWrap:"wrap"}}>{(links.options||[]).map(o=><a key={o.label} href={o.url} target="_blank" rel="noreferrer" style={{background:"#635bff",color:"#fff",padding:"12px 20px",borderRadius:8,fontWeight:600,fontSize:14,textDecoration:"none"}}>Subscribe — {o.label}</a>)}{links.portal_url && <a href={links.portal_url} target="_blank" rel="noreferrer" style={{background:"#fff",color:"#4a5568",border:"1px solid #e2e8f0",padding:"12px 20px",borderRadius:8,fontWeight:600,fontSize:14,textDecoration:"none"}}>Manage Billing</a>}</div>
         : <div style={{background:"#ebf8ff",border:"1px solid #bee3f8",borderRadius:10,padding:16,marginBottom:20,fontSize:13,color:"#2c5282"}}>Your payments appear here automatically. To pay, use the invoice or link we send you — online payment is being set up.</div>}
       <div style={{background:"#fff",borderRadius:10,boxShadow:"0 1px 4px rgba(0,0,0,0.08)",overflow:"hidden"}}>
         <div style={{padding:"14px 18px",borderBottom:"1px solid #edf2f7",fontWeight:600,fontSize:14,display:"flex",justifyContent:"space-between"}}>
