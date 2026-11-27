@@ -980,6 +980,7 @@ function ForwardingTab({ apiFetch }) {
   const [busy, setBusy] = useState(false);
   const [histFor, setHistFor] = useState(null);
   const [hist, setHist] = useState([]);
+  const [openForm, setOpenForm] = useState({ client_id:"", amount:"" });
   const load = async () => {
     try { const b = await apiFetch("/admin/fwd/balances"); setRows(Array.isArray(b)?b:[]); } catch(e){}
     try { const c = await apiFetch("/admin/clients"); setClients(Array.isArray(c)?c:(c.clients||[])); } catch(e){}
@@ -1008,6 +1009,10 @@ function ForwardingTab({ apiFetch }) {
     const note = window.prompt("Note (optional):","")||"";
     try { await apiFetch("/admin/fwd/adjust", { method:"POST", body: JSON.stringify({ client_id:cid, amount:Number(v)||0, note }) }); load(); } catch(e){ setMsg("Error: "+e.message); }
   };
+  const saveOpening = async () => {
+    if(!openForm.client_id){ setMsg("Pick a client to set a balance"); return; }
+    try { await apiFetch("/admin/fwd/opening", { method:"POST", body: JSON.stringify({ client_id:Number(openForm.client_id), amount:Number(openForm.amount)||0 }) }); setMsg("Opening balance set"); setOpenForm({ client_id:"", amount:"" }); load(); } catch(e){ setMsg("Error: "+e.message); }
+  };
   const showHist = async (cid) => {
     if(histFor===cid){ setHistFor(null); setHist([]); return; }
     setHistFor(cid);
@@ -1030,6 +1035,18 @@ function ForwardingTab({ apiFetch }) {
         <div style={{marginTop:12,fontSize:15}}>Total this forwarding: <b>{"$"+total.toFixed(2)}</b></div>
         <button onClick={submit} disabled={busy} style={{marginTop:12,background:"#2563eb",color:"#fff",border:"none",borderRadius:8,padding:"10px 18px",fontWeight:700,cursor:"pointer"}}>{busy?"Saving...":"Record Forwarding"}</button>
         {msg && <div style={{marginTop:10,fontSize:14,color:"#2d3748"}}>{msg}</div>}
+      </div>
+      <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:12,padding:18,marginBottom:20,maxWidth:560}}>
+        <div style={{fontWeight:700,marginBottom:8}}>Set a Starting Balance</div>
+        <div style={{fontSize:13,color:"#718096",marginBottom:10}}>Use once per forwarding client to enter the balance they already have (from Square).</div>
+        <div style={{display:"flex",gap:10}}>
+          <select value={openForm.client_id} onChange={e=>setOpenForm({...openForm,client_id:e.target.value})} style={fwdInput}>
+            <option value="">Select client...</option>
+            {clients.map(c=>(<option key={c.id} value={c.id}>{(c.mailbox_number||c.mailbox||"?")+" - "+nameOf(c)}</option>))}
+          </select>
+          <input type="number" step="0.01" value={openForm.amount} onChange={e=>setOpenForm({...openForm,amount:e.target.value})} placeholder="0.00" style={{...fwdInput,maxWidth:130}}/>
+          <button onClick={saveOpening} style={{background:"#2f855a",color:"#fff",border:"none",borderRadius:8,padding:"9px 16px",fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>Set</button>
+        </div>
       </div>
       <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:12,overflow:"hidden",maxWidth:720}}>
         <div style={{padding:"12px 16px",borderBottom:"1px solid #edf2f7",fontWeight:700}}>Balances</div>
