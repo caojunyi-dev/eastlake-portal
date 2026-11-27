@@ -96,7 +96,8 @@ const TABS = [
 {id:"requests", label:"📋 Requests"},
 {id:"clients", label:"👥 Clients"},
 {id:"payments",label:"💳 Payments"},{id:"messages", label:"💬 Messages"},
-{id:"documents", label:"📁 Documents"},
+{id:"forwarding", label:"Forwarding"},
+            {id:"documents", label:"📁 Documents"},
 ];
 
 function Sidebar({ active, onChange, stats, onLogout }) {
@@ -971,6 +972,99 @@ const StatusBadge = ({s}) => <span style={{padding:"2px 8px",borderRadius:10,fon
 const Loading = () => <div style={{textAlign:"center",padding:60,color:"#718096"}}>Loading...</div>;
 
 // ─── App Root ─────────────────────────────────────────────────────────────────
+function ForwardingTab({ apiFetch }) {
+  const [clients, setClients] = useState([]);
+  const [rows, setRows] = useState([]);
+  const [form, setForm] = useState({ client_id:"", package:"", postage:"" });
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [histFor, setHistFor] = useState(null);
+  const [hist, setHist] = useState([]);
+  const load = async () => {
+    try { const b = await apiFetch("/admin/fwd/balances"); setRows(Array.isArray(b)?b:[]); } catch(e){}
+    try { const c = await apiFetch("/admin/clients"); setClients(Array.isArray(c)?c:(c.clients||[])); } catch(e){}
+  };
+  useEffect(()=>{ load(); }, []);
+  const total = 2 + (Number(form.package)||0) + (Number(form.postage)||0);
+  const nameOf = (c) => c.company || c.name || c.user_email || ("Mailbox "+(c.mailbox_number||c.mailbox||""));
+  const submit = async () => {
+    if(!form.client_id){ setMsg("Pick a client first"); return; }
+    setBusy(true); setMsg("");
+    try {
+      const r = await apiFetch("/admin/fwd/forward", { method:"POST", body: JSON.stringify({ client_id:Number(form.client_id), package:Number(form.package)||0, postage:Number(form.postage)||0 }) });
+      setMsg("Recorded $"+Number(r.total).toFixed(2)+" - new balance $"+Number(r.balance).toFixed(2)+(r.low?" - LOW, needs top-up":""));
+      setForm({ client_id:"", package:"", postage:"" }); load();
+    } catch(e){ setMsg("Error: "+e.message); }
+    setBusy(false);
+  };
+  const setOpening = async (cid, name) => {
+    const v = window.prompt("Set opening balance for "+(name||"client")+" ($):", "");
+    if(v===null) return;
+    try { await apiFetch("/admin/fwd/opening", { method:"POST", body: JSON.stringify({ client_id:cid, amount:Number(v)||0 }) }); load(); } catch(e){ setMsg("Error: "+e.message); }
+  };
+  const adjust = async (cid, name) => {
+    const v = window.prompt("Adjust balance for "+(name||"client")+" (use -5 to subtract, 5 to add):", "");
+    if(v===null||v==="") return;
+    const note = window.prompt("Note (optional):","")||"";
+    try { await apiFetch("/admin/fwd/adjust", { method:"POST", body: JSON.stringify({ client_id:cid, amount:Number(v)||0, note }) }); load(); } catch(e){ setMsg("Error: "+e.message); }
+  };
+  const showHist = async (cid) => {
+    if(histFor===cid){ setHistFor(null); setHist([]); return; }
+    setHistFor(cid);
+    try { const h = await apiFetch("/admin/fwd/ledger?client_id="+cid); setHist(Array.isArray(h)?h:[]); } catch(e){ setHist([]); }
+  };
+  return (
+    <div>
+      <h2 style={h2Style}>Mail Forwarding</h2>
+      <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:12,padding:18,marginBottom:20,maxWidth:560}}>
+        <div style={{fontWeight:700,marginBottom:12}}>Record a Forwarding</div>
+        <select value={form.client_id} onChange={e=>setForm({...form,client_id:e.target.value})} style={fwdInput}>
+          <option value="">Select client...</option>
+          {clients.map(c=>(<option key={c.id} value={c.id}>{(c.mailbox_number||c.mailbox||"?")+" - "+nameOf(c)}</option>))}
+        </select>
+        <div style={{display:"flex",gap:10,marginTop:10}}>
+          <div style={{flex:1}}><label style={fwdLbl}>Forwarding fee</label><input value="2.00" disabled style={{...fwdInput,background:"#f7fafc"}}/></div>
+          <div style={{flex:1}}><label style={fwdLbl}>Package fee</label><input type="number" step="0.01" value={form.package} onChange={e=>setForm({...form,package:e.target.value})} placeholder="0.00" style={fwdInput}/></div>
+          <div style={{flex:1}}><label style={fwdLbl}>Postage</label><input type="number" step="0.01" value={form.postage} onChange={e=>setForm({...form,postage:e.target.value})} placeholder="0.00" style={fwdInput}/></div>
+        </div>
+        <div style={{marginTop:12,fontSize:15}}>Total this forwarding: <b>{"$"+total.toFixed(2)}</b></div>
+        <button onClick={submit} disabled={busy} style={{marginTop:12,background:"#2563eb",color:"#fff",border:"none",borderRadius:8,padding:"10px 18px",fontWeight:700,cursor:"pointer"}}>{busy?"Saving...":"Record Forwarding"}</button>
+        {msg && <div style={{marginTop:10,fontSize:14,color:"#2d3748"}}>{msg}</div>}
+      </div>
+      <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:12,overflow:"hidden",maxWidth:720}}>
+        <div style={{padding:"12px 16px",borderBottom:"1px solid #edf2f7",fontWeight:700}}>Balances</div>
+        {rows.length===0 && <div style={{padding:16,color:"#718096",fontSize:14}}>No forwarding balances yet. Set an opening balance, or record a forwarding.</div>}
+        {rows.map(c=>(
+          <div key={c.client_id} style={{borderBottom:"1px solid #f1f5f9"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px"}}>
+              <div>
+                <div style={{fontWeight:600}}>{(c.mailbox||"")+" "+(c.name||"")}</div>
+                <div style={{fontSize:12,color:"#718096"}}>{c.email||""}</div>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <div style={{fontWeight:800,fontSize:16,color:(Number(c.balance)<10?"#e53e3e":"#2f855a")}}>{"$"+Number(c.balance).toFixed(2)}{Number(c.balance)<10?" (low)":""}</div>
+                <button onClick={()=>showHist(c.client_id)} style={fwdMini}>History</button>
+                <button onClick={()=>adjust(c.client_id,c.name)} style={fwdMini}>Adjust</button>
+                <button onClick={()=>setOpening(c.client_id,c.name)} style={fwdMini}>Set</button>
+              </div>
+            </div>
+            {histFor===c.client_id && (
+              <div style={{padding:"4px 16px 12px",background:"#f8fafc"}}>
+                {hist.length===0 && <div style={{fontSize:12,color:"#718096"}}>No history.</div>}
+                {hist.map((h,i)=>(<div key={i} style={{fontSize:12,color:"#4a5568",padding:"3px 0",display:"flex",justifyContent:"space-between"}}><span>{(h.created_at||"").slice(0,16)+" - "+h.kind+(h.note?(" - "+h.note):"")}</span><span style={{color:(Number(h.amount)<0?"#e53e3e":"#2f855a")}}>{(Number(h.amount)<0?"-":"+")+"$"+Math.abs(Number(h.amount)).toFixed(2)+" -> $"+Number(h.balance_after).toFixed(2)}</span></div>))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+const fwdInput={width:"100%",padding:"9px 11px",border:"1px solid #cbd5e0",borderRadius:8,fontSize:14,boxSizing:"border-box"};
+const fwdLbl={display:"block",fontSize:12,color:"#718096",marginBottom:4};
+const fwdMini={background:"#edf2f7",border:"1px solid #cbd5e0",borderRadius:6,padding:"5px 10px",fontSize:12,cursor:"pointer",fontWeight:600};
+
+
 export default function AdminDashboard() {
 const { user, login, logout, apiFetch, loading } = useAuth();
 const [tab, setTab] = useState("dashboard");
@@ -999,7 +1093,8 @@ return (
 {tab==="clients" && <ClientsTab apiFetch={apiFetch} onMessage={openMessage}/>}
 {tab==="payments"  && <PaymentsTab apiFetch={apiFetch}/>}
         {tab==="messages" && <MessagesTab apiFetch={apiFetch} selectedClient={msgClient} onClearClient={()=>setMsgClient(null)}/>}
-{tab==="documents" && <DocumentsTab apiFetch={apiFetch}/>}
+{tab==="forwarding" && <ForwardingTab apiFetch={apiFetch}/>}
+          {tab==="documents" && <DocumentsTab apiFetch={apiFetch}/>}
 </main>
 </div>
 );
